@@ -264,6 +264,115 @@ async function checkpoint(): Promise<Array<string>> {
 	return out;
 }
 
+/**
+ * What ends or cuts a recording: the budget of a page view (END 2), a module that throws (ERR,
+ * the rest goes on), and the return from the back/forward cache (a new snapshot is due).
+ */
+async function lifecycle(): Promise<Array<string>> {
+	const out: Array<string> = [];
+	const has = (tape: Chunk["tape"], ...seq: Array<unknown>) =>
+		tape.some((_, i) => seq.every((v, k) => tape[i + k] === v));
+	const count = (tape: Chunk["tape"], ...seq: Array<unknown>) =>
+		tape.filter((_, i) => seq.every((v, k) => tape[i + k] === v)).length;
+
+	// The budget: past it, END 2 goes on the next tape and nothing more is recorded.
+	{
+		const win = await loadSite("__fuzz__");
+		const doc = win.document;
+		await sleep(30);
+		const rec = await recorderIn(win, { budget: 20_000, printEvery: 0 });
+		rec.snap();
+		const p = doc.createElement("p");
+		p.textContent = "x".repeat(30_000);
+		doc.body.append(p);
+		await sleep(100);
+		const over = own(rec.drain());
+		if (!over.tape.length) out.push("budget : la bande qui le dépasse est vide");
+		if (!rec.stopped) out.push("budget : l'enregistreur tourne encore");
+		const next = own(rec.drain());
+		if (!has(next.tape, 98, 2)) out.push(`budget : pas de END 2 sur la bande suivante (${JSON.stringify(next.tape).slice(0, 80)})`);
+		doc.body.append(doc.createElement("hr"));
+		await sleep(100);
+		const after = own(rec.drain());
+		if (after.tape.length) out.push(`budget : encore ${after.tape.length} jetons après l'arrêt`);
+	}
+
+	// Modules that throw: each is cut alone, once, and said by name; the copy stays right.
+	{
+		const win = await loadSite("__fuzz__");
+		const doc = win.document;
+		await sleep(30);
+		let kit: { take: (root: Node, host: Element) => number } | undefined;
+		let syncs = 0;
+		const extra = [
+			{ name: "early", setup() { throw new Error("setup"); } },
+			{
+				name: "half",
+				setup(k: typeof kit) { kit = k; },
+				// Numbers a root, then throws: the numbering is off, a snapshot is due.
+				onElement(el: Element) {
+					if (el.id !== "boom") return;
+					kit?.take(doc.createDocumentFragment(), el);
+					throw new Error("half");
+				},
+			},
+			{ name: "sync", onSync() { syncs++; throw new Error("sync"); } },
+		];
+		const rec = await recorderIn(win, { extra, printEvery: 0 });
+		const snap = own(rec.snap());
+		if (count(snap.tape, 129, 1, "early") !== 1) out.push("module : ERR early absent de la capture");
+		if (rec.needsSnap) out.push("module : capture demandée avant tout défaut");
+		const host = document.getElementById("replay") as HTMLElement;
+		host.replaceChildren();
+		const player = createPlayer({ root: host, chunks: [{ base: snap.base, tape: snap.tape }] });
+		const boom = doc.createElement("div");
+		boom.id = "boom";
+		boom.textContent = "boum";
+		doc.body.append(boom);
+		await sleep(100);
+		const d1 = own(rec.drain());
+		if (count(d1.tape, 129, 1, "half") !== 1) out.push("module : ERR half absent ou répété");
+		if (count(d1.tape, 129, 1, "sync") !== 1) out.push("module : ERR sync absent ou répété");
+		if (!rec.needsSnap) out.push("module : pas de capture demandée après une numérotation cassée");
+		doc.body.append(doc.createElement("hr"));
+		await sleep(100);
+		const d2 = own(rec.drain());
+		if (has(d2.tape, 129)) out.push("module : un module coupé a encore écrit");
+		if (syncs !== 1) out.push(`module : onSync appelé ${syncs} fois, 1 attendu`);
+		const again = own(rec.snap());
+		if (rec.needsSnap) out.push("module : capture encore demandée après la capture");
+		for (const name of ["early", "half", "sync"]) if (count(again.tape, 129, 1, name) !== 1) out.push(`module : ERR ${name} absent de la nouvelle capture`);
+		doc.body.append(doc.createElement("hr"));
+		await sleep(100);
+		const d3 = own(rec.drain());
+		player.append([{ base: d1.base, tape: d1.tape }, { base: d2.base, tape: d2.tape }, { base: again.base, tape: again.tape }, { base: d3.base, tape: d3.tape }]);
+		player.seek(player.duration);
+		await sleep(50);
+		for (const d of compare(doc, player.document, { mask: "inputs", max: 3 })) out.push(`module : copie ${d.path} ${d.what}`);
+		rec.stop();
+	}
+
+	// Back from the cache: a new snapshot is due; a page shown for the first time asks nothing.
+	{
+		const win = await loadSite("__fuzz__");
+		await sleep(30);
+		const rec = await recorderIn(win, { printEvery: 0 });
+		rec.snap();
+		const show = (persisted: boolean) => win.dispatchEvent(new win.PageTransitionEvent("pageshow", { persisted }));
+		show(false);
+		if (rec.needsSnap) out.push("cache : capture demandée sans retour par le cache");
+		win.dispatchEvent(new win.PageTransitionEvent("pagehide", { persisted: true }));
+		show(true);
+		if (!rec.needsSnap) out.push("cache : pas de capture demandée au retour");
+		rec.snap();
+		if (rec.needsSnap) out.push("cache : capture encore demandée après la capture");
+		rec.stop();
+		show(true);
+		if (rec.needsSnap) out.push("cache : capture demandée après l'arrêt");
+	}
+	return out;
+}
+
 /** Where the copy holds more or fewer nodes than the page, the way PRINT counts them. */
 function census(live: Node, copy: Node, path = ""): string | null {
 	const kids = (n: Node) =>
@@ -289,4 +398,5 @@ function census(live: Node, copy: Node, path = ""): string | null {
 	end,
 	fuzz,
 	checkpoint,
+	lifecycle,
 };

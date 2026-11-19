@@ -65,6 +65,10 @@ for (const name of engines) {
 	if (kept.length) failed++;
 	console.log(`${kept.length ? "✗" : "✓"} point de reprise : canvas, défilement, popover`);
 	for (const k of kept) console.log(`    ${k}`);
+	const life = await page.evaluate(() => window.lab.lifecycle());
+	if (life.length) failed++;
+	console.log(`${life.length ? "✗" : "✓"} budget, module coupé, retour par le cache`);
+	for (const l of life) console.log(`    ${l}`);
 	await browser.close();
 }
 console.log(failed ? `\n${failed} échec(s)` : "\ntout passe");

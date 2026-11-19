@@ -97,7 +97,7 @@ export interface Recorder {
 	/** Stops; `reason` is written on the tape, for the next drain. */
 	stop(reason?: End): void;
 	readonly stopped: boolean;
-	/** True when the next thing to send must be a new snapshot (a module failed mid-way). */
+	/** True when the next thing to send must be a new snapshot: a module failed mid-way, or the page came back from the back/forward cache. */
 	readonly needsSnap: boolean;
 }
 
@@ -917,7 +917,12 @@ export function record(w: Window, o: Options = {}): Recorder | null {
 		stamp();
 		tape.push(Op.HIDE, d.hidden ? 1 : 0);
 	};
+	// Back from the cache: the beacon on the way out may not have held all the tape.
+	const onShow = (e: PageTransitionEvent) => {
+		if (e.persisted) resnap = true;
+	};
 	w.addEventListener("resize", onResize);
+	w.addEventListener("pageshow", onShow);
 	d.addEventListener("visibilitychange", onHide);
 	listen(d);
 	observe(d);
@@ -942,6 +947,7 @@ export function record(w: Window, o: Options = {}): Recorder | null {
 		clearTimeout(sizeTimer as number);
 		clearInterval(poll);
 		w.removeEventListener("resize", onResize);
+		w.removeEventListener("pageshow", onShow);
 		d.removeEventListener("visibilitychange", onHide);
 		for (const f of stops) f();
 		for (const m of modules) if (m.onStop) guard(m, () => m.onStop?.());
@@ -979,7 +985,10 @@ export function record(w: Window, o: Options = {}): Recorder | null {
 			cuts = [tape.length];
 			scanned = bytes = cutAt = 0;
 			for (let c = N.first(d); c; c = N.next(c)) ser(c, mode === "text" ? 1 : 0);
+			const wasOff = [...off];
 			for (const m of modules) if (m.onSnap) guard(m, () => m.onSnap?.());
+			// A snapshot starts the copy again: it says again which modules are off, one cut at setup included.
+			for (const m of wasOff) tape.push(Op.ERR, 1, m.name);
 			resnap = false;
 			const out: Snapshot = {
 				tape,
