@@ -161,6 +161,12 @@ export function record(w: Window, o: Options = {}): Recorder | null {
 	const dKids = new Map<Node, Set<Node>>();
 	/** Nodes taken out of their parent and still in the page, with the number they had. */
 	const left = new Map<Node, number>();
+	/**
+	 * Nodes forgotten with an ancestor during this read, with the number they had. Forgetting
+	 * walks the page as it is now, so it takes along nodes moved into that ancestor since the last
+	 * read, which the copy still holds where they were: their own removal says where.
+	 */
+	const gone = new Map<Node, number>();
 	/** Roots (template content, shadow roots, frame documents) and what holds them. */
 	const owner = new WeakMap<Node, Element>();
 	/** Form controls, dialogs and popovers, and the value last written for each. */
@@ -431,16 +437,19 @@ export function record(w: Window, o: Options = {}): Recorder | null {
 		cut(mark, name);
 	}
 
-	function forget(n: Node) {
-		if (!ids.delete(n)) return;
+	function forget(n: Node, inner?: 1) {
+		const id = ids.get(n);
+		if (!id) return;
+		ids.delete(n);
+		if (inner) gone.set(n, id);
 		if (isEl(n)) {
 			fields.delete(n);
-			if (N.local(n) === "template") forget(N.content(n as HTMLTemplateElement));
+			if (N.local(n) === "template") forget(N.content(n as HTMLTemplateElement), 1);
 		}
-		for (let c = N.first(n); c; c = N.next(c)) forget(c);
+		for (let c = N.first(n); c; c = N.next(c)) forget(c, 1);
 		for (const m of modules) {
 			const tree = m.inner ? safe(m, () => m.inner?.(n)) : null;
-			if (tree) forget(tree);
+			if (tree) forget(tree, 1);
 		}
 	}
 
@@ -603,7 +612,7 @@ export function record(w: Window, o: Options = {}): Recorder | null {
 
 	/** Out of the page, a node is no longer observed: it leaves now, and comes back as a new one. */
 	function drop(n: Node) {
-		const id = ids.get(n);
+		const id = ids.get(n) || gone.get(n);
 		if (id) {
 			dels.push(id);
 			forget(n);
@@ -645,7 +654,7 @@ export function record(w: Window, o: Options = {}): Recorder | null {
 					const n = removed[i] as Node;
 					if (!n.isConnected) drop(n);
 					else {
-						const id = ids.get(n);
+						const id = ids.get(n) || gone.get(n);
 						if (id) left.set(n, id);
 					}
 				}
@@ -734,6 +743,7 @@ export function record(w: Window, o: Options = {}): Recorder | null {
 			}
 		});
 		left.clear();
+		gone.clear();
 
 		dAttr.forEach((names, el) => {
 			const id = ids.get(el);
@@ -918,6 +928,7 @@ export function record(w: Window, o: Options = {}): Recorder | null {
 			dText.clear();
 			dKids.clear();
 			left.clear();
+			gone.clear();
 			fields.clear();
 			observer.takeRecords();
 			last = now();

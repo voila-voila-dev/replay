@@ -438,6 +438,18 @@ export const CASES: ReadonlyArray<Case> = [
 		secrets: ["Durand"],
 	},
 	{
+		// The fuzzer's WebKit seed 2, round 50, reduced: the zone change and the move arrive in the
+		// same batch, and forgetting the zone took the moved node along.
+		name: "bloqué, puis un nœud y entre",
+		group: "masquage",
+		html: D('<div id="a"><b>gras</b><i>reste</i></div><div id="x"><p>avant</p></div>'),
+		run: (d) => {
+			const x = d.getElementById("x") as Element;
+			x.setAttribute("data-va-block", "");
+			x.append(d.querySelector("b") as Element);
+		},
+	},
+	{
 		name: "débloqué après coup",
 		group: "masquage",
 		html: D('<div id="x" data-va-block><p>caché</p></div>'),
