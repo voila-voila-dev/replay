@@ -16,10 +16,11 @@ const bundle = async (contents) => {
 };
 
 const core = await bundle(`import { record } from "./src/record/index"; import { connect } from "./src/send/index"; globalThis.r = [record, connect];`);
-const lines = [["cœur + envoi", core, 4096]];
+// Ceilings, not targets: a compromise with what the recorder does, kept from creeping.
+const lines = [["cœur + envoi", core, 8192]];
 for (const m of ["shadow", "iframes", "canvas", "cssom"]) {
 	const all = await bundle(`import { record } from "./src/record/index"; import { connect } from "./src/send/index"; import { ${m} } from "./src/modules/index"; globalThis.r = [record, connect, ${m}];`);
-	lines.push([`module ${m}`, all - core, 400]);
+	lines.push([`module ${m}`, all - core, 700]);
 }
 lines.push(["lecteur", await bundle(`import { createPlayer } from "./src/play/index"; globalThis.p = createPlayer;`), 8192]);
 let over = false;

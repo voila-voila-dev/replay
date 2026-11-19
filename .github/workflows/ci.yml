@@ -1,0 +1,23 @@
+name: ci
+on:
+  push:
+    branches: [main]
+  pull_request:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.3
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: bun install --frozen-lockfile
+      - run: npx tsc --noEmit -p .
+      - run: bun test test/unit
+      - run: npx playwright install --with-deps chromium webkit firefox
+      - run: npm run test:browser
+      - run: node test/browser/fuzz.mjs --seeds 4 --rounds 60
+      - run: node scripts/size.mjs
