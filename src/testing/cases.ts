@@ -450,6 +450,23 @@ export const CASES: ReadonlyArray<Case> = [
 		},
 	},
 	{
+		// The fuzzer's seed 16, round 22, reduced: a field changed by script keeps its value when
+		// its default goes; a copy that only got the attribute loses it.
+		name: "champ changé par script, puis son attribut retiré",
+		group: "mutations",
+		html: D('<input id="f" value="haie"><input id="c" type="checkbox" checked>'),
+		run: async (d, _w, wait) => {
+			const f = d.getElementById("f") as HTMLInputElement;
+			const c = d.getElementById("c") as HTMLInputElement;
+			f.value = "haie";
+			c.checked = true;
+			await wait(80);
+			f.removeAttribute("value");
+			c.removeAttribute("checked");
+		},
+		o: { mask: "none" },
+	},
+	{
 		name: "débloqué après coup",
 		group: "masquage",
 		html: D('<div id="x" data-va-block><p>caché</p></div>'),

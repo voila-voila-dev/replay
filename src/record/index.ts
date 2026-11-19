@@ -755,6 +755,8 @@ export function record(w: Window, o: Options = {}): Recorder | null {
 				const v = N.get(el, name);
 				const out = v === null ? null : attr(el, tag, name, v, z);
 				if (out !== undefined) tape.push(Op.ATTR, id, name, out);
+				// A field changed by script keeps its value when its default changes; the copy's does not.
+				if (name === "value" || name === "checked" || name === "selected") written.delete(el);
 			});
 		});
 		dAttr.clear();
