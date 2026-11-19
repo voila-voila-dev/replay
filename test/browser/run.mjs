@@ -61,6 +61,10 @@ for (const name of engines) {
 		for (const l of result.leaks) console.log(`    FUITE: ${l}`);
 		if (result.prints.bad) console.log(`    empreinte fausse ${result.prints.bad}/${result.prints.total}`);
 	}
+	const kept = await page.evaluate(() => window.lab.checkpoint());
+	if (kept.length) failed++;
+	console.log(`${kept.length ? "✗" : "✓"} point de reprise : canvas, défilement, popover`);
+	for (const k of kept) console.log(`    ${k}`);
 	await browser.close();
 }
 console.log(failed ? `\n${failed} échec(s)` : "\ntout passe");

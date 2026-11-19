@@ -3,17 +3,19 @@
 // does not follow the last one is a hole: the player says so and resumes at the next snapshot,
 // rather than replaying a page that is no longer the one recorded.
 import { type Chunk, join, length, Op } from "../format/index";
-import { fingerprint, type Mirror, mirror } from "./mirror";
+import { type Checkpoint, fingerprint, type Mirror, mirror } from "./mirror";
 
 export { join } from "../format/index";
 export { fingerprint, mirror } from "./mirror";
-export type { Mirror, MirrorHooks } from "./mirror";
+export type { Checkpoint, Mirror, MirrorHooks } from "./mirror";
 
 export interface PlayerOptions {
 	readonly root: HTMLElement;
 	readonly chunks: ReadonlyArray<Chunk>;
 	readonly speed?: number;
 	readonly skipIdle?: boolean;
+	/** Ms of recording between two checkpoints; a seek starts from the nearest one. */
+	readonly every?: number;
 }
 
 export interface Gap {
@@ -61,11 +63,14 @@ export interface Player {
 
 /** Idle stretches longer than this are skipped down to a second. */
 const IDLE_MS = 5000;
+/** Past this many checkpoints, one in two goes and they come twice as far apart. */
+const MAX_CHECKPOINTS = 64;
 
 export function createPlayer(options: PlayerOptions): Player {
 	const { root } = options;
 	let speed = options.speed ?? 1;
 	let skipIdle = options.skipIdle ?? true;
+	let every = Math.max(1, options.every ?? 10_000);
 
 	const stage = root.ownerDocument.createElement("div");
 	stage.style.cssText = "position:relative;overflow:hidden;transform-origin:0 0";
@@ -151,19 +156,44 @@ export function createPlayer(options: PlayerOptions): Player {
 	let frame = 0;
 	let lastFrame = 0;
 
+	// Taken on the way, at the first rest past each step of `every` ms; never ahead of the tape run.
+	const checkpoints: Array<{ index: number; time: number; cp: Checkpoint }> = [];
+	const after = (t: number) => start + (Math.floor((t - start) / every) + 1) * every;
+
+	function keep() {
+		if (!m.rest || checkpoints.some((c) => c.index === at)) return;
+		const c = { index: at, time: m.time, cp: m.save() };
+		let k = checkpoints.length;
+		while (k > 0 && (checkpoints[k - 1] as { index: number }).index > at) k--;
+		checkpoints.splice(k, 0, c);
+		if (checkpoints.length > MAX_CHECKPOINTS) {
+			every *= 2;
+			for (let i = checkpoints.length - 1; i >= 0; i -= 2) checkpoints.splice(i, 1);
+		}
+	}
+
 	function runTo(ms: number) {
-		at = m.run(tape, at, start + ms);
+		const until = start + ms;
+		for (let step = after(Math.max(m.time, start)); step < until; ) {
+			at = m.run(tape, at, step);
+			if (at >= tape.length || tape[at] !== Op.TICK) break;
+			keep();
+			step = after(m.time + (tape[at + 1] as number));
+		}
+		at = m.run(tape, at, until);
 	}
 
 	function seek(ms: number) {
 		ms = Math.max(0, Math.min(ms, end - start));
-		if (ms < clock || at === 0) {
-			let from = metas[0];
-			for (const x of metas) if (x.time - start <= ms) from = x;
-			if (!from) return;
+		// The latest place to start from that is not past `ms`: a snapshot or a checkpoint.
+		let from: { index: number; cp?: Checkpoint } | undefined;
+		for (const x of metas) if (x.time - start <= ms && (!from || x.index > from.index)) from = x;
+		for (const x of checkpoints) if (x.time - start <= ms && (!from || x.index > from.index)) from = x;
+		if (from && (ms < clock || at === 0 || from.index > at)) {
 			m = make();
+			if (from.cp) m.restore(from.cp);
 			at = from.index;
-		}
+		} else if (!from && (ms < clock || at === 0)) return;
 		clock = ms;
 		runTo(ms);
 		emit("time", clock);

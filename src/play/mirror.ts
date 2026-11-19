@@ -23,6 +23,34 @@ export interface Mirror {
 	readonly next: number;
 	readonly url: string;
 	readonly nodes: ReadonlyArray<Node | undefined>;
+	/** True between batches, where a checkpoint may be taken. */
+	readonly rest: boolean;
+	/** A copy of the rebuilt page and of what numbers it, to come back to without the tape. */
+	save(): Checkpoint;
+	/** Puts the page back as it was saved; the tape then runs on from where the save was. */
+	restore(cp: Checkpoint): void;
+}
+
+/**
+ * What a copy of the document does not carry is kept beside it: the rules of constructed sheets,
+ * which roots adopt them, the frames' documents, canvas pixels, modal dialogs and open popovers,
+ * scroll positions, and the last size and pointer.
+ */
+export interface Checkpoint {
+	readonly holder: Document;
+	readonly nodes: ReadonlyArray<Node | undefined>;
+	readonly frames: ReadonlyMap<Element, Node>;
+	readonly sheets: ReadonlyArray<string | undefined>;
+	readonly adopted: ReadonlyArray<readonly [Node, ReadonlyArray<number>]>;
+	readonly pixels: ReadonlyArray<readonly [Node, HTMLCanvasElement]>;
+	readonly shown: ReadonlyArray<readonly [Node, number]>;
+	readonly scrolls: ReadonlyArray<readonly [Node, number, number]>;
+	readonly seq: number;
+	readonly base: string;
+	readonly now: number;
+	readonly mode: number;
+	readonly size: readonly [number, number] | null;
+	readonly pointer: readonly [number, number] | null;
 }
 
 const SVG = "http://www.w3.org/2000/svg";
@@ -57,6 +85,13 @@ export function mirror(doc: Document, hooks: MirrorHooks = {}): Mirror {
 	let seq = 0;
 	let base = "";
 	let now = 0;
+	let size: [number, number] | null = null;
+	let pointer: [number, number] | null = null;
+	// What a copy of the tree would lose, noted as the tape does it, for a checkpoint to keep.
+	let drawn = new Set<Node>();
+	let scrolled = new Set<Node>();
+	let opened = new Set<Node>();
+	let adopting = new Set<Node>();
 	const win = () => doc.defaultView as (Window & typeof globalThis) | null;
 
 	const absolute = (url: string, from = base) => {
@@ -177,6 +212,10 @@ export function mirror(doc: Document, hooks: MirrorHooks = {}): Mirror {
 		while (doc.firstChild) doc.removeChild(doc.firstChild);
 		nodes = [undefined, doc];
 		sheets = [];
+		drawn = new Set();
+		scrolled = new Set();
+		opened = new Set();
+		adopting = new Set();
 		seq = 1;
 		stack = [{ p: doc, a: null }];
 	}
@@ -323,6 +362,7 @@ export function mirror(doc: Document, hooks: MirrorHooks = {}): Mirror {
 					const el = nodes[a(1)] as HTMLDialogElement | undefined;
 					const state: number = a(2);
 					if (!el || el.nodeType !== 1) break;
+					opened.add(el);
 					try {
 						if (local(el) === "dialog") {
 							if (el.open) el.close();
@@ -363,7 +403,10 @@ export function mirror(doc: Document, hooks: MirrorHooks = {}): Mirror {
 						if (s) list.push(s);
 					}
 					try {
-						if (root && "adoptedStyleSheets" in root) root.adoptedStyleSheets = list;
+						if (root && "adoptedStyleSheets" in root) {
+							root.adoptedStyleSheets = list;
+							adopting.add(root);
+						}
 					} catch {}
 					break;
 				}
@@ -371,6 +414,7 @@ export function mirror(doc: Document, hooks: MirrorHooks = {}): Mirror {
 					now += a(1) as number;
 					break;
 				case Op.MOVE:
+					pointer = [a(1), a(2)];
 					hooks.pointer?.(a(1), a(2));
 					break;
 				case Op.TAP:
@@ -381,6 +425,7 @@ export function mirror(doc: Document, hooks: MirrorHooks = {}): Mirror {
 					const x: number = a(2);
 					const y: number = a(3);
 					try {
+						if (nodes[id]) scrolled.add(nodes[id] as Node);
 						if (id === 1) win()?.scrollTo(x, y);
 						else {
 							const el = nodes[id] as Element | undefined;
@@ -394,6 +439,7 @@ export function mirror(doc: Document, hooks: MirrorHooks = {}): Mirror {
 					break;
 				}
 				case Op.SIZE:
+					size = [a(1), a(2)];
 					hooks.size?.(a(1), a(2));
 					break;
 				case Op.FOCUS: {
@@ -405,6 +451,7 @@ export function mirror(doc: Document, hooks: MirrorHooks = {}): Mirror {
 					base = a(2);
 					now = a(3);
 					reset(a(6));
+					size = [a(4), a(5)];
 					hooks.size?.(a(4), a(5));
 					break;
 				case Op.PRINT: {
@@ -416,6 +463,7 @@ export function mirror(doc: Document, hooks: MirrorHooks = {}): Mirror {
 					const el = nodes[a(2)] as HTMLCanvasElement | undefined;
 					const shot: string = a(3);
 					if (!el || typeof el.getContext !== "function" || !/^data:image\//.test(shot)) break;
+					drawn.add(el);
 					const image = new Image();
 					image.onload = () => {
 						const c = el.getContext("2d");
@@ -431,8 +479,125 @@ export function mirror(doc: Document, hooks: MirrorHooks = {}): Mirror {
 		return i;
 	}
 
+	function save(): Checkpoint {
+		const holder = blank(doc);
+		const { map, frames } = copy(nodes, doc, holder, (f) => (f as HTMLIFrameElement).contentDocument);
+		const adopted: Array<readonly [Node, ReadonlyArray<number>]> = [];
+		const pixels: Array<readonly [Node, HTMLCanvasElement]> = [];
+		const shown: Array<readonly [Node, number]> = [];
+		const scrolls: Array<readonly [Node, number, number]> = [];
+		for (const n of adopting) {
+			const at = map.get(n);
+			const list = (n as Document | ShadowRoot).adoptedStyleSheets;
+			if (at && list?.length) adopted.push([at, list.map((x) => sheets.indexOf(x))]);
+		}
+		for (const n of scrolled) {
+			const c = map.get(n);
+			if (!c) continue;
+			if (n.nodeType === 9) {
+				const w = (n as Document).defaultView;
+				if (w) scrolls.push([c, w.scrollX, w.scrollY]);
+			} else if (n.nodeType === 1) scrolls.push([c, (n as Element).scrollLeft, (n as Element).scrollTop]);
+		}
+		for (const n of opened) {
+			const c = map.get(n);
+			try {
+				if (c && local(n as Element) === "dialog" && (n as Element).matches(":modal")) shown.push([c, 2]);
+				else if (c && (n as Element).matches(":popover-open")) shown.push([c, 1]);
+			} catch {}
+		}
+		for (const n of drawn) {
+			const c = map.get(n);
+			const from = n as HTMLCanvasElement;
+			if (!c || !from.width || !from.height) continue;
+			const pixel = doc.createElement("canvas");
+			pixel.width = from.width;
+			pixel.height = from.height;
+			try {
+				pixel.getContext("2d")?.drawImage(from, 0, 0);
+				pixels.push([c, pixel]);
+			} catch {}
+		}
+		return {
+			holder,
+			nodes: nodes.map((n) => n && map.get(n)),
+			frames,
+			sheets: sheets.map((s) => s && rulesOf(s)),
+			adopted,
+			pixels,
+			shown,
+			scrolls,
+			seq,
+			base,
+			now,
+			mode: doc.compatMode === "BackCompat" ? 1 : 0,
+			size,
+			pointer,
+		};
+	}
+
+	function restore(cp: Checkpoint) {
+		reset(cp.mode);
+		const { map } = copy(cp.nodes, cp.holder, doc, (f) => cp.frames.get(f) || null);
+		nodes = cp.nodes.map((n) => n && map.get(n));
+		seq = cp.seq;
+		base = cp.base;
+		now = cp.now;
+		cp.sheets.forEach((text, k) => {
+			if (text !== undefined) constructed(k, text);
+		});
+		for (const [root, list] of cp.adopted) {
+			const r = map.get(root) as Document | ShadowRoot | undefined;
+			try {
+				if (r && "adoptedStyleSheets" in r) {
+					r.adoptedStyleSheets = list.map((k) => sheets[k]).filter(Boolean) as Array<CSSStyleSheet>;
+					adopting.add(r);
+				}
+			} catch {}
+		}
+		for (const [node, pixel] of cp.pixels) {
+			const el = map.get(node) as HTMLCanvasElement | undefined;
+			try {
+				if (!el) continue;
+				el.getContext("2d")?.drawImage(pixel, 0, 0);
+				drawn.add(el);
+			} catch {}
+		}
+		for (const [node, state] of cp.shown) {
+			const el = map.get(node) as (HTMLDialogElement & { showPopover(): void }) | undefined;
+			try {
+				if (!el?.isConnected) continue;
+				opened.add(el);
+				if (state === 2) {
+					if (el.open) el.close();
+					el.showModal();
+				} else el.showPopover();
+			} catch {}
+		}
+		for (const [node, x, y] of cp.scrolls) {
+			const n = map.get(node);
+			if (n) scrolled.add(n);
+			try {
+				if (n?.nodeType === 9) (n as Document).defaultView?.scrollTo(x, y);
+				else if (n?.nodeType === 1) {
+					(n as Element).scrollLeft = x;
+					(n as Element).scrollTop = y;
+				}
+			} catch {}
+		}
+		size = cp.size && [cp.size[0], cp.size[1]];
+		pointer = cp.pointer && [cp.pointer[0], cp.pointer[1]];
+		if (size) hooks.size?.(size[0], size[1]);
+		if (pointer) hooks.pointer?.(pointer[0], pointer[1]);
+	}
+
 	return {
 		run,
+		save,
+		restore,
+		get rest() {
+			return stack.length === 1;
+		},
 		get time() {
 			return now;
 		},
@@ -446,6 +611,133 @@ export function mirror(doc: Document, hooks: MirrorHooks = {}): Mirror {
 			return nodes;
 		},
 	};
+}
+
+/** An empty document of no window: what it holds neither loads nor runs. */
+function blank(from: Document): Document {
+	const d = from.implementation.createHTMLDocument("");
+	while (d.firstChild) d.removeChild(d.firstChild);
+	return d;
+}
+
+function rulesOf(sheet: CSSStyleSheet): string {
+	let text = "";
+	try {
+		for (const rule of Array.from(sheet.cssRules)) text += rule.cssText;
+	} catch {}
+	return text;
+}
+
+/**
+ * Copies every numbered node of `from` into `into`, the trees whole and the detached ones too,
+ * and returns which copy is which. Shadow roots, template contents and frames' documents are
+ * walked by hand, since cloning skips them; field state is set where cloning loses it. Nodes are
+ * put in place before their children, so a frame in a live document has its document to fill.
+ */
+function copy(
+	from: ReadonlyArray<Node | undefined>,
+	root: Document,
+	into: Document,
+	inner: (frame: Element) => Node | null,
+): { map: Map<Node, Node>; frames: Map<Element, Node> } {
+	const map = new Map<Node, Node>();
+	const frames = new Map<Element, Node>();
+	const owner = new Map<Node, Node>();
+	for (const n of from)
+		if (n?.nodeType === 1 && localName.call(n as Element) === "template")
+			owner.set((n as HTMLTemplateElement).content, n);
+
+	const children = (s: Node, d: Node) => {
+		for (let c = firstChild.call(s); c; c = nextSibling.call(c)) node(c, d);
+	};
+	function node(s: Node, parent: Node | null): void {
+		let c: Node;
+		try {
+			// WebKit refuses to import a doctype.
+			const t = s as DocumentType;
+			c =
+				s.nodeType === 10
+					? into.implementation.createDocumentType(t.name, t.publicId, t.systemId)
+					: into.importNode(s, false);
+		} catch {
+			return;
+		}
+		map.set(s, c);
+		if (added.has(s)) added.add(c);
+		if (parent)
+			try {
+				parent.appendChild(c);
+			} catch {}
+		if (s.nodeType !== 1) return;
+		const el = s as Element;
+		const to = c as Element;
+		const tag = localName.call(el);
+		if (tag === "template" && "content" in el) {
+			const content = (to as HTMLTemplateElement).content;
+			map.set((el as HTMLTemplateElement).content, content);
+			children((el as HTMLTemplateElement).content, content);
+		}
+		const shadow = el.shadowRoot;
+		if (shadow)
+			try {
+				const r = to.shadowRoot || to.attachShadow({ mode: "open" });
+				map.set(shadow, r);
+				children(shadow, r);
+			} catch {}
+		if (tag === "iframe") {
+			const i = inner(el);
+			if (i) {
+				let d: Node | null = null;
+				try {
+					d = (to as HTMLIFrameElement).contentDocument;
+				} catch {}
+				if (d) while (d.firstChild) d.removeChild(d.firstChild);
+				else d = blank(into);
+				map.set(i, d);
+				frames.set(to, d);
+				children(i, d);
+			}
+		}
+		children(el, to);
+		// biome-ignore lint/suspicious/noExplicitAny: form controls.
+		const a = el as any;
+		// biome-ignore lint/suspicious/noExplicitAny: form controls.
+		const b = to as any;
+		try {
+			if (tag === "input" || tag === "textarea") {
+				if (b.value !== a.value && a.type !== "file") b.value = a.value;
+				if (b.checked !== a.checked) b.checked = a.checked;
+			} else if (tag === "select") {
+				if (a.multiple || a.size > 1) {
+					for (let k = 0; k < a.options.length; k++)
+						if (b.options[k] && b.options[k].selected !== a.options[k].selected) b.options[k].selected = a.options[k].selected;
+				} else if (b.selectedIndex !== a.selectedIndex) b.selectedIndex = a.selectedIndex;
+			} else if (tag === "option" && !el.parentElement?.closest("select") && b.selected !== a.selected)
+				b.selected = a.selected;
+		} catch {}
+	}
+
+	map.set(root, into);
+	children(root, into);
+	// The nodes out of the page: each tree from its top, through shadow hosts and templates.
+	for (const n of from) {
+		if (!n || map.has(n)) continue;
+		let top = n;
+		for (;;) {
+			// `host` only on a shadow root: on a link it is the address's host.
+			const up: Node | null | undefined =
+				top.parentNode || (top.nodeType === 11 ? (top as ShadowRoot).host : null) || owner.get(top);
+			if (!up) break;
+			top = up;
+		}
+		if (map.has(top)) continue;
+		if (top.nodeType === 9 || top.nodeType === 11) {
+			const d = top.nodeType === 9 ? blank(into) : into.createDocumentFragment();
+			map.set(top, d);
+			children(top, d);
+		} else node(top, null);
+	}
+	return { map, frames };
 }
 
 /** The PRINT of a rebuilt document, as the recorder computes it of the page. */

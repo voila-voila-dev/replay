@@ -1,7 +1,7 @@
 // The lab page's side of the browser tests: loads a case in the site frame, records it,
 // replays it in the replay frame, and judges the copy with the oracle.
 import { type Chunk, resolve, validate } from "../../src/format/index";
-import { createPlayer } from "../../src/play/index";
+import { createPlayer, mirror } from "../../src/play/index";
 import type { Recorder } from "../../src/record/index";
 import { pack } from "../../src/send/index";
 import { CASES, type Case } from "../../src/testing/cases";
@@ -100,14 +100,24 @@ async function end() {
 
 	const host = document.getElementById("replay") as HTMLElement;
 	host.replaceChildren();
-	const player = createPlayer({ root: host, chunks });
+	// A checkpoint at each tick, so a short case still seeks back through one.
+	const player = createPlayer({ root: host, chunks, every: 1 });
 	player.seek(player.duration);
 	await sleep(50);
-	let diffs: Array<unknown>;
-	try {
-		diffs = compare(win.document, player.document, { mask: c.o?.mask || "inputs" });
-	} catch (e) {
-		diffs = [{ path: "-", what: `oracle: ${e}` }];
+	const judge = (when: string) => {
+		try {
+			return compare(win.document, player.document, { mask: c.o?.mask || "inputs" }).map((d) => ({ ...d, what: `${when}${d.what}` }));
+		} catch (e) {
+			return [{ path: "-", what: `${when}oracle: ${e}` }];
+		}
+	};
+	let diffs: Array<unknown> = judge("");
+	if (!diffs.length) {
+		// Back to the middle, then to the end: both seeks start from a checkpoint.
+		player.seek(player.duration / 2);
+		player.seek(player.duration);
+		await sleep(50);
+		diffs = judge("après reprise : ");
 	}
 	const prints = player.prints;
 	return {
@@ -129,7 +139,7 @@ async function end() {
 async function fuzz(
 	seed: number,
 	rounds: number,
-	o: { drop?: boolean; mask?: "inputs" | "text" | "none"; slice?: number; rate?: number } = {},
+	o: { drop?: boolean; mask?: "inputs" | "text" | "none"; slice?: number; rate?: number; resume?: boolean } = {},
 ) {
 	const win = await loadSite("__fuzz__");
 	const doc = win.document;
@@ -146,7 +156,7 @@ async function fuzz(
 	};
 	let seq = 0;
 	const snap = own(rec.snap());
-	const player = createPlayer({ root: host, chunks: [await wire(snap)] });
+	const player = createPlayer({ root: host, chunks: [await wire(snap)], every: o.resume ? 1 : undefined });
 	const gen = mutator(doc, seeded(seed));
 	const dropAt = o.drop ? 1 + (seed % Math.max(1, rounds - 2)) : -1;
 	let holes = 0;
@@ -175,6 +185,11 @@ async function fuzz(
 			player.append([chunk]);
 			player.seek(player.duration);
 		}
+		// resume: the copy goes back to its last checkpoint and plays on from there.
+		if (o.resume) {
+			player.seek(Math.max(0, player.duration - 1));
+			player.seek(player.duration);
+		}
 		const diffs = compare(doc, player.document, { mask, max: 2, ignoreMode: true });
 		if (diffs.length) return { round: r, diff: diffs[0], holes, errs: errs.slice(0, 3), log: gen.log.slice(), last: JSON.stringify(chunk.tape).slice(0, 1200) };
 		const wrong = player.prints.filter((p) => !p.ok).length;
@@ -182,6 +197,71 @@ async function fuzz(
 	}
 	rec.stop();
 	return { round: rounds, diff: null, holes };
+}
+
+/**
+ * What a copy of the document does not carry, through a checkpoint: canvas pixels, a scrolled
+ * box, an open popover. Saved, then the tape plays on and changes all three; the checkpoint,
+ * restored into a new document and into the first one, must show them as they were saved.
+ */
+async function checkpoint(): Promise<Array<string>> {
+	const paint = (color: string) => {
+		const c = document.createElement("canvas");
+		c.width = c.height = 4;
+		const g = c.getContext("2d") as CanvasRenderingContext2D;
+		g.fillStyle = color;
+		g.fillRect(0, 0, 4, 4);
+		return c.toDataURL();
+	};
+	const frame = () => {
+		const f = document.createElement("iframe");
+		f.setAttribute("sandbox", "allow-same-origin");
+		(document.getElementById("replay") as HTMLElement).append(f);
+		return f.contentDocument as Document;
+	};
+	(document.getElementById("replay") as HTMLElement).replaceChildren();
+	// Numbers: doctype 2, html 3, body 4, canvas 5, box 6, its content 7, popover 8, its text 9.
+	const tape = [
+		96, 2, "http://lab.test/x", 1000, 400, 300, 0,
+		3, "html", "", "",
+		1, "html", 0, 1, "body", 0,
+		1, "canvas", 2, "width", "4", "height", "4", 0,
+		1, "div", 1, "style", "width:100px;height:50px;overflow:auto", 1, "div", 1, "style", "height:500px", 0, 0,
+		1, "div", 2, "id", "pop", "popover", "", 2, "menu", 0,
+		0, 0,
+		128, 2, 5, paint("#ff0000"),
+		48, 10, 51, 6, 0, 120, 21, 8, 1, 48, 10,
+	];
+	const later = [128, 2, 5, paint("#0000ff"), 51, 6, 0, 0, 21, 8, 0, 48, 10];
+	const a = mirror(frame());
+	a.run(tape as never);
+	await sleep(80);
+	const cp = a.save();
+	const next = a.next;
+	a.run(later as never);
+	await sleep(80);
+	const out: Array<string> = [];
+	const look = (m: ReturnType<typeof mirror>, where: string) => {
+		const canvas = m.nodes[5] as HTMLCanvasElement;
+		const px = canvas?.getContext("2d")?.getImageData(1, 1, 1, 1).data;
+		if (!px || px[0] !== 255 || px[2] !== 0) out.push(`${where}: canvas ${px ? Array.from(px).join(",") : "absent"}, rouge attendu`);
+		const box = m.nodes[6] as Element;
+		if (box?.scrollTop !== 120) out.push(`${where}: défilement ${box?.scrollTop}, 120 attendu`);
+		const pop = m.nodes[8] as Element;
+		let open = false;
+		try {
+			open = pop.matches(":popover-open");
+		} catch {}
+		if (!open) out.push(`${where}: popover fermé`);
+		if (m.next !== next) out.push(`${where}: prochain numéro ${m.next}, ${next} attendu`);
+		if ((m.nodes[9] as Text)?.data !== "menu") out.push(`${where}: texte du nœud 9`);
+	};
+	const b = mirror(frame());
+	b.restore(cp);
+	look(b, "document neuf");
+	a.restore(cp);
+	look(a, "même document");
+	return out;
 }
 
 /** Where the copy holds more or fewer nodes than the page, the way PRINT counts them. */
@@ -208,4 +288,5 @@ function census(live: Node, copy: Node, path = ""): string | null {
 	start,
 	end,
 	fuzz,
+	checkpoint,
 };
