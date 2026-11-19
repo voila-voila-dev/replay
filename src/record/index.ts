@@ -27,6 +27,8 @@ export interface Options {
 	readonly budget?: number;
 	/** Milliseconds between two fingerprints of the page (PRINT); 0: none. */
 	readonly printEvery?: number;
+	/** Milliseconds a read of the mutations may take before it hands back to the page. */
+	readonly slice?: number;
 	readonly modules?: ReadonlyArray<Module>;
 }
 
@@ -131,6 +133,7 @@ export function record(w: Window, o: Options = {}): Recorder | null {
 	const rate = o.rate ?? 50;
 	const budget = o.budget ?? 8_000_000;
 	const printEvery = o.printEvery ?? 30_000;
+	const slice = o.slice ?? 8;
 	const modules = [...(o.modules || [])];
 	const now = () => Math.round(w.performance.now());
 
@@ -441,7 +444,12 @@ export function record(w: Window, o: Options = {}): Recorder | null {
 		const id = ids.get(n);
 		if (!id) return;
 		ids.delete(n);
-		if (inner) gone.set(n, id);
+		if (inner) {
+			gone.set(n, id);
+			// Moved here in a read cut short: the copy still holds it where it was.
+			const p = N.parent(n);
+			if (p && dKids.get(p)?.has(n)) dels.push(id);
+		}
 		if (isEl(n)) {
 			fields.delete(n);
 			if (N.local(n) === "template") forget(N.content(n as HTMLTemplateElement), 1);
@@ -607,7 +615,7 @@ export function record(w: Window, o: Options = {}): Recorder | null {
 		const idle = (w as any).requestIdleCallback as
 			| ((f: () => void, o: { timeout: number }) => void)
 			| undefined;
-		timer = setTimeout(() => (idle ? idle(sync, { timeout: 100 }) : sync()), rate);
+		timer = setTimeout(() => (idle ? idle(() => sync(), { timeout: 100 }) : sync()), rate);
 	}
 
 	/** Out of the page, a node is no longer observed: it leaves now, and comes back as a new one. */
@@ -687,9 +695,20 @@ export function record(w: Window, o: Options = {}): Recorder | null {
 			subtree: true,
 		});
 
-	function sync() {
+	/** Comes back for the rest of a read cut short, as soon as the page had its turn. */
+	function resume() {
+		// biome-ignore lint/suspicious/noExplicitAny: scheduler.yield is not everywhere yet.
+		const s = (w as any).scheduler;
+		if (s?.yield) s.yield().then(() => sync());
+		else timer = setTimeout(() => sync(), 0);
+	}
+
+	/** Reads what changed. Cut after `slice` ms, between two parents, unless `whole`. */
+	function sync(whole?: boolean) {
 		timer = 0;
 		if (stopped) return;
+		const began = w.performance.now();
+		let cut = false;
 		seen(observer.takeRecords());
 		timer = 0;
 		const before = tape.length;
@@ -709,9 +728,12 @@ export function record(w: Window, o: Options = {}): Recorder | null {
 			if (z === undefined) zones.set(n, (z = zoneOf(n)));
 			return z;
 		};
-		dKids.forEach((touched, parent) => {
+		for (const [parent, touched] of dKids) {
+			// The rest waits for the next slice: the parents left are read as they are then.
+			if (cut) break;
+			dKids.delete(parent);
 			const pid = ids.get(parent);
-			if (!pid || pid >= fresh) return;
+			if (!pid || pid >= fresh) continue;
 			const z = zone(parent);
 			touched.forEach((t) => {
 				if (N.parent(t) !== parent) return;
@@ -731,8 +753,14 @@ export function record(w: Window, o: Options = {}): Recorder | null {
 				if (tape.length === mark + 3) tape.length = mark;
 				else tape.push(Op.X);
 			});
+			if (!whole && w.performance.now() - began >= slice) cut = true;
+		}
+		// Parents numbered in this read were recorded whole: what touched them is said.
+		dKids.forEach((_, parent) => {
+			const pid = ids.get(parent);
+			if (!pid || pid >= fresh) dKids.delete(parent);
 		});
-		dKids.clear();
+		if (!dKids.size) cut = false;
 		// A moved node the copy still holds where it was: forgotten since with what held it, or
 		// now where nothing is recorded (a blocked element).
 		left.forEach((id, n) => {
@@ -785,7 +813,9 @@ export function record(w: Window, o: Options = {}): Recorder | null {
 		readSheets();
 		for (const m of modules) if (m.onSync) guard(m, () => m.onSync?.());
 
-		if (printEvery && last - lastPrint >= printEvery) {
+		// The copy is behind by the parents left: no fingerprint until it caught up.
+		if (cut) resume();
+		else if (printEvery && last - lastPrint >= printEvery) {
 			lastPrint = last;
 			const [count, hash] = fingerprintOf(d);
 			tape.push(Op.PRINT, count, hash);
@@ -970,7 +1000,7 @@ export function record(w: Window, o: Options = {}): Recorder | null {
 			return out;
 		},
 		drain() {
-			if (!stopped) sync();
+			if (!stopped) sync(true);
 			if (ended) {
 				tape.push(Op.END, ended);
 				ended = 0;

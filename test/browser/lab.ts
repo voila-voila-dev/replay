@@ -126,12 +126,16 @@ async function end() {
  * lost on the way: the player must report the hole and stop there, and be right again once a new
  * snapshot comes.
  */
-async function fuzz(seed: number, rounds: number, o: { drop?: boolean; mask?: "inputs" | "text" | "none" } = {}) {
+async function fuzz(
+	seed: number,
+	rounds: number,
+	o: { drop?: boolean; mask?: "inputs" | "text" | "none"; slice?: number; rate?: number } = {},
+) {
 	const win = await loadSite("__fuzz__");
 	const doc = win.document;
 	await sleep(30);
 	const mask = o.mask || "inputs";
-	const rec = await recorderIn(win, { mask, printEvery: 1 });
+	const rec = await recorderIn(win, { mask, printEvery: 1, slice: o.slice, rate: o.rate });
 	const drain = () => own(rec.drain());
 	const host = document.getElementById("replay") as HTMLElement;
 	host.replaceChildren();
@@ -149,6 +153,8 @@ async function fuzz(seed: number, rounds: number, o: { drop?: boolean; mask?: "i
 	const errs: Array<string> = [];
 	for (let r = 0; r < rounds; r++) {
 		await gen.round();
+		// Reads cut in slices run on their own before the drain, which reads whatever is left.
+		if (o.slice !== undefined) await sleep(40);
 		const chunk = await wire(drain());
 		for (let i = 0; i < chunk.tape.length; i++) if (chunk.tape[i] === 129 && chunk.tape[i + 1] === 1 && typeof chunk.tape[i + 2] === "string") errs.push(String(chunk.tape[i + 2]));
 		const bad = validate(chunk.tape, chunk.base);

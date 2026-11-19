@@ -30,10 +30,12 @@ for (const name of engines) {
 	await page.goto("http://lab.test/lab.html");
 	pages = await page.evaluate(() => window.lab.pages());
 	console.log(`\n${name} ${browser.version()}`);
-	for (const mode of (arg("modes") || "plain,drop,text,none").split(",")) {
+	for (const mode of (arg("modes") || "plain,drop,slice,text,none").split(",")) {
 		let ok = 0;
 		for (let seed = 1; seed <= seeds; seed++) {
-			const o = mode === "drop" ? { drop: true } : mode === "plain" ? {} : { mask: mode };
+			// slice: each read of the mutations cut after one parent, the rest left to the next slice.
+			const o =
+				mode === "drop" ? { drop: true } : mode === "slice" ? { slice: 0, rate: 0 } : mode === "plain" ? {} : { mask: mode };
 			let r;
 			try {
 				r = await page.evaluate(([s, n, opt]) => window.lab.fuzz(s, n, opt), [seed, rounds, o]);
