@@ -785,6 +785,11 @@ export function record(w: Window, o: Options = {}): Recorder | null {
 				if (out !== undefined) tape.push(Op.ATTR, id, name, out);
 				// A field changed by script keeps its value when its default changes; the copy's does not.
 				if (name === "value" || name === "checked" || name === "selected") written.delete(el);
+				// The browser picks again in the copy: every option of the select is sent again.
+				if (name === "selected" && tag === "option") {
+					const select = selectOf(el);
+					if (select) for (const o of Array.from(select.options)) written.delete(o);
+				}
 			});
 		});
 		dAttr.clear();

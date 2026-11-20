@@ -467,6 +467,21 @@ export const CASES: ReadonlyArray<Case> = [
 		o: { mask: "none" },
 	},
 	{
+		name: "<select> : l'attribut selected retiré, puis vidé par script",
+		group: "mutations",
+		html: D('<div id="a"></div>'),
+		run: async (d, _w, wait) => {
+			(d.getElementById("a") as Element).innerHTML =
+				'<select id="s"><option>taille</option><option id="o" selected>serre</option></select>';
+			await wait(80);
+			// The browser picks the first option again, then the script unpicks it: the copy must
+			// learn that the first option is no longer chosen.
+			(d.getElementById("o") as Element).removeAttribute("selected");
+			(d.getElementById("s") as HTMLSelectElement).selectedIndex = -1;
+		},
+		o: { mask: "none" },
+	},
+	{
 		name: "débloqué après coup",
 		group: "masquage",
 		html: D('<div id="x" data-va-block><p>caché</p></div>'),
