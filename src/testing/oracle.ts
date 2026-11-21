@@ -206,13 +206,18 @@ export function compare(live: Document, copy: Document, o: OracleOptions = {}): 
 			const want = shown(L.value, fieldHidden(L, masked, clear));
 			if (want !== R.value) add(p, "textarea.value", want, R.value);
 		} else if (tag === "select") {
+			// A single select shows its `selectedIndex`: Safari 16 may also report as chosen the
+			// option given `selected` by script, which it does not show.
 			const picked = (s: HTMLSelectElement) =>
-				Array.from(s.options, (x, i) => (x.selected ? i : -1))
-					.filter((i) => i >= 0)
-					.join(",");
+				s.multiple || s.size > 1
+					? Array.from(s.options, (x, i) => (x.selected ? i : -1))
+							.filter((i) => i >= 0)
+							.join(",")
+					: s.selectedIndex < 0
+						? ""
+						: String(s.selectedIndex);
 			let want = picked(L);
 			if (fieldHidden(L, masked, clear)) {
-				// A hidden choice: the copy shows what the markup alone selects.
 				// A hidden choice: the copy shows what the markup alone selects.
 				const options = Array.from(L.options as ArrayLike<HTMLOptionElement>);
 				if (L.multiple || L.size > 1) want = options.map((x, i) => (hasA(x, "selected") ? i : -1)).filter((i) => i >= 0).join(",");
