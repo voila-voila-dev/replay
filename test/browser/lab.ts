@@ -271,6 +271,27 @@ async function checkpoint(): Promise<Array<string>> {
 	look(b, "document neuf");
 	a.restore(cp);
 	look(a, "même document");
+	// Pictures and fonts load from the copy kept for them; a stylesheet keeps its address.
+	const kept = (url: string) => (url.includes("/p/") ? url.replace("http://lab.test/", "http://kept.test/") : url);
+	const c = mirror(frame(), { asset: kept });
+	// Numbers: doctype 2, html 3, head 4, link 5, body 6, img 7, div 8.
+	c.run([
+		96, 2, "http://lab.test/x", 1000, 400, 300, 0,
+		3, "html", "", "",
+		1, "html", 0, 1, "head", 0, 1, "link", 2, "rel", "stylesheet", "href", "/p/site.css", 0, 0,
+		1, "body", 0,
+		1, "img", 2, "src", "/p/a.jpg", "srcset", "/p/a.jpg 1x, /p/b.jpg 2x", 0,
+		1, "div", 1, "style", "background:url(/p/c.png)", 0,
+		0, 0,
+	] as never);
+	const img = c.nodes[7] as Element;
+	if (img?.getAttribute("src") !== "http://kept.test/p/a.jpg") out.push(`copie gardée : src ${img?.getAttribute("src")}`);
+	if (img?.getAttribute("srcset") !== "http://kept.test/p/a.jpg 1x, http://kept.test/p/b.jpg 2x")
+		out.push(`copie gardée : srcset ${img?.getAttribute("srcset")}`);
+	if (!(c.nodes[8] as Element)?.getAttribute("style")?.includes("http://kept.test/p/c.png"))
+		out.push(`copie gardée : style ${(c.nodes[8] as Element)?.getAttribute("style")}`);
+	if ((c.nodes[5] as Element)?.getAttribute("href") !== "http://lab.test/p/site.css")
+		out.push(`copie gardée : la feuille a changé d'adresse, ${(c.nodes[5] as Element)?.getAttribute("href")}`);
 	return out;
 }
 
