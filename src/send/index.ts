@@ -219,12 +219,12 @@ export function connect(o: ConnectOptions): Link {
 			}),
 		);
 		let answer = await attempt(body);
-		// A piece may itself refer to long strings: the server asks again once it read the piece.
+		// A piece may itself refer to long strings: the server asks again once it read the piece,
+		// so what this chunk refers to is kept until the server stops asking.
 		for (let round = 0; round < 3; round++) {
 			if (answer?.snap) o.onSnap?.();
 			const need = (answer?.need || []).filter((h) => kept.has(h));
-			if (round === 0) for (const h of local.keys()) if (!need.includes(h)) kept.delete(h);
-			if (!need.length) return;
+			if (!need.length) break;
 			for (const h of need) wanted.add(h);
 			const blobs: Record<string, string> = {};
 			for (const h of need) blobs[h] = kept.get(h) as string;
@@ -234,6 +234,7 @@ export function connect(o: ConnectOptions): Link {
 				kept.delete(h);
 			}
 		}
+		for (const h of local.keys()) kept.delete(h);
 	}
 
 	/** The head of the page view, numbering again from 0 when it changed. */

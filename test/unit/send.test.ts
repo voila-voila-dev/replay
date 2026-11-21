@@ -39,6 +39,19 @@ describe("connect", () => {
 		await link.send(piece([Op.TICK, 2]));
 		expect(s.bodies.map((b) => b.seq)).toEqual([0, 1]);
 	});
+	test("a long string inside a piece goes once the server, having read the piece, asks for it", async () => {
+		// A snapshot cut in two pieces, the second holding a stylesheet longer than 256 characters.
+		const tape = [Op.META, 2, "u", 0, 1, 1, 0, Op.E, "style", 0, Op.T, long, Op.X, Op.E, "p", 0, Op.X];
+		const kept = new Map<string, string>();
+		const wire = await pack(tape, [7, 13], kept);
+		const pieces = wire.filter(Array.isArray).map((t) => (t as Array<string>)[0] as string);
+		const inner = [...kept.keys()].find((h) => kept.get(h) === long) as string;
+		const s = server([{ need: pieces }, { need: [inner] }]);
+		const link = connect({ endpoint: "/r", head: () => head, post: s.post });
+		await link.send(piece(tape, 1, [7, 13]));
+		expect(Object.keys(s.bodies[1]?.blobs || {}).sort()).toEqual([...pieces].sort());
+		expect(s.bodies[2]?.blobs?.[inner]).toBe(long);
+	});
 	test("asks for a snapshot when the server saw a hole", async () => {
 		const s = server([{ snap: true }]);
 		let snaps = 0;
