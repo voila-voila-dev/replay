@@ -80,6 +80,16 @@ export function compare(live: Document, copy: Document, o: OracleOptions = {}): 
 		}
 	};
 	const cssAbs = (t: string) => t.replace(CSS_URL, (_m, _q, u: string) => `url("${abs(u)}")`);
+	// The player leaves out a name the copy's DOM refuses (`@click`, `:class` where the DOM still
+	// holds attribute names to the XML rules): that browser cannot hold it outside the parser.
+	const refused = (name: string) => {
+		try {
+			copy.createAttribute(name);
+			return false;
+		} catch {
+			return true;
+		}
+	};
 	const rules = (sheet: CSSStyleSheet) => {
 		try {
 			return Array.from(sheet.cssRules, (r) => r.cssText).join("\n");
@@ -176,6 +186,7 @@ export function compare(live: Document, copy: Document, o: OracleOptions = {}): 
 					})
 					.join(", ");
 			else if (name === "style" && side === "live") v = cssAbs(v);
+			if (side === "live" && refused(name)) continue;
 			m.set(name, v);
 		}
 		return m;

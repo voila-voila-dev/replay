@@ -1,35 +1,24 @@
-// The fuzzer, on the three engines: random mutations of a page, the copy judged after each round.
-//   node test/browser/fuzz.mjs [--engine webkit] [--seeds 20] [--rounds 150]
-import { readFileSync } from "node:fs";
-import { chromium, firefox, webkit } from "playwright";
+// The fuzzer, in each target (see drivers.mjs): random mutations of a page, the copy judged after each round.
+//   node test/browser/fuzz.mjs [--target webkit,ios] [--seeds 20] [--rounds 150]
+import { open } from "./drivers.mjs";
+import { serve } from "./serve.mjs";
 
 const args = process.argv.slice(2);
 const arg = (name, d) => {
 	const i = args.indexOf(`--${name}`);
 	return i >= 0 ? args[i + 1] : d;
 };
-const ENGINES = { chromium, webkit, firefox };
-const engines = arg("engine") ? [arg("engine")] : Object.keys(ENGINES);
+const targets = (arg("target") || arg("engine") || "chromium,webkit,firefox").split(",");
 const seeds = +arg("seeds", 12);
 const rounds = +arg("rounds", 120);
-const LAB = `<!DOCTYPE html><html><head><meta charset="utf-8"></head><body><iframe id="site" style="width:800px;height:600px"></iframe><div id="replay"></div><script src="/build/lab.js"></script></body></html>`;
 
+const server = await serve(+(process.env.LAB_PORT || 0), process.env.LAB_HOST);
 let failed = 0;
-let pages = {};
-for (const name of engines) {
-	const browser = await ENGINES[name].launch();
-	const page = await browser.newPage();
-	await page.route("http://lab.test/**", (route) => {
-		const path = new URL(route.request().url()).pathname;
-		if (path === "/lab.html") return route.fulfill({ contentType: "text/html", body: LAB });
-		if (path === "/site.html") return route.fulfill({ contentType: "text/html", body: pages[new URL(route.request().url()).searchParams.get("n")] || "" });
-		if (path === "/blank.html") return route.fulfill({ contentType: "text/html", body: "<!DOCTYPE html><html><head></head><body></body></html>" });
-		if (path.startsWith("/build/")) return route.fulfill({ contentType: "text/javascript", body: readFileSync(new URL(`.${path}`, import.meta.url)) });
-		return route.fulfill({ status: 404, body: "" });
-	});
-	await page.goto("http://lab.test/lab.html");
-	pages = await page.evaluate(() => window.lab.pages());
-	console.log(`\n${name} ${browser.version()}`);
+for (const name of targets) {
+	const b = await open(name, { port: new URL(server.origin).port });
+	await b.goto(`${server.origin}/lab.html`);
+	server.pages = await b.evaluate(() => window.lab.pages());
+	console.log(`\n${b.version}`);
 	for (const mode of (arg("modes") || "plain,drop,slice,resume,slice+resume,text,none").split(",")) {
 		let ok = 0;
 		for (let seed = 1; seed <= seeds; seed++) {
@@ -45,7 +34,7 @@ for (const name of engines) {
 			}
 			let r;
 			try {
-				r = await page.evaluate(([s, n, opt]) => window.lab.fuzz(s, n, opt), [seed, rounds, o]);
+				r = await b.evaluate(([s, n, opt]) => window.lab.fuzz(s, n, opt), [seed, rounds, o]);
 			} catch (e) {
 				r = { round: -1, diff: { what: String(e).split("\n")[0] } };
 			}
@@ -60,6 +49,7 @@ for (const name of engines) {
 		}
 		console.log(`  ${mode}: ${ok}/${seeds} graines, ${rounds} tours chacune`);
 	}
-	await browser.close();
+	await b.close();
 }
+server.close();
 process.exit(failed ? 1 : 0);

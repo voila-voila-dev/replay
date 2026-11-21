@@ -20,7 +20,7 @@ await build({
 execSync("npx tsc -p tsconfig.json", { stdio: "inherit" });
 
 await build({
-	entryPoints: { lab: "test/browser/lab.ts", recorder: "test/browser/recorder.ts" },
+	entryPoints: { lab: "test/browser/lab.ts", recorder: "test/browser/recorder.ts", visit: "test/browser/visit.ts" },
 	outdir: "test/browser/build",
 	bundle: true,
 	format: "iife",

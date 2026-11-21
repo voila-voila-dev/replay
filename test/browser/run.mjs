@@ -1,75 +1,128 @@
-// Runs the case suite in Chromium, WebKit and Firefox, all through Playwright.
-//   node test/browser/run.mjs [--engine chromium] [--case "témoin"]
-import { readFileSync } from "node:fs";
-import { chromium, firefox, webkit } from "playwright";
+// Runs the case suite in each target: Playwright's Chromium, WebKit and Firefox by default, or
+// Safari iOS, Chrome Android, a stock Firefox, any device (see drivers.mjs).
+//   node test/browser/run.mjs [--target chromium,ios] [--case "témoin"] [--tapes]
+import { open } from "./drivers.mjs";
+import { serve } from "./serve.mjs";
 
 const args = process.argv.slice(2);
 const arg = (name) => {
 	const i = args.indexOf(`--${name}`);
 	return i >= 0 ? args[i + 1] : undefined;
 };
-const ENGINES = { chromium, webkit, firefox };
-const engines = arg("engine") ? [arg("engine")] : Object.keys(ENGINES);
+const targets = (arg("target") || arg("engine") || "chromium,webkit,firefox").split(",");
 const only = arg("case");
 
-const LAB = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>lab</title></head><body>
-<iframe id="site" style="width:800px;height:600px"></iframe><div id="replay"></div>
-<script src="/build/lab.js"></script></body></html>`;
-const BLANK = `<!DOCTYPE html><html><head></head><body></body></html>`;
+const server = await serve(+(process.env.LAB_PORT || 0), process.env.LAB_HOST);
+let failed = 0;
 
-async function serve(page) {
-	await page.route("http://lab.test/**", (route) => {
-		const url = new URL(route.request().url());
-		if (url.pathname === "/lab.html") return route.fulfill({ contentType: "text/html", body: LAB });
-		if (url.pathname === "/site.html") return route.fulfill({ contentType: "text/html", body: pages[url.searchParams.get("n")] || "" });
-		if (url.pathname === "/blank.html") return route.fulfill({ contentType: "text/html", body: BLANK });
-		if (url.pathname.startsWith("/build/"))
-			return route.fulfill({ contentType: "text/javascript", body: readFileSync(new URL(`.${url.pathname}`, import.meta.url)) });
-		return route.fulfill({ status: 404, body: "" });
+let skips = 0;
+function report(c, result) {
+	if (result.skipped) {
+		skips++;
+		console.log(`– ${c}  (sauté : ${result.skipped} absent)`);
+		return false;
+	}
+	const bad = result.diffs.length || result.errors.length || result.leaks.length || result.prints.bad;
+	if (bad) failed++;
+	console.log(`${bad ? "✗" : "✓"} ${c}${bad ? "" : `  (${result.bytes} o)`}`);
+	for (const d of result.diffs) console.log(`    ${d.path}  ${d.what}: ${JSON.stringify(d.live)} ≠ ${JSON.stringify(d.copy)}`);
+	if ((only || args.includes("--tapes")) && result.tapes) for (const t of result.tapes) console.log(`    bande: ${t}`);
+	for (const e of result.errors) console.log(`    erreur: ${e}`);
+	for (const l of result.leaks) console.log(`    FUITE: ${l}`);
+	if (result.prints.bad) console.log(`    empreinte fausse ${result.prints.bad}/${result.prints.total}`);
+	return !bad;
+}
+function reportList(label, list) {
+	if (list.length) failed++;
+	console.log(`${list.length ? "✗" : "✓"} ${label}`);
+	for (const l of list) console.log(`    ${l}`);
+}
+
+/** A page that runs the suite on its own: what it posts is reported as it comes. */
+function selfRun(b) {
+	return new Promise((done, fail) => {
+		let ok = 0;
+		let total = 0;
+		let timer;
+		// A browser that stops posting for this long is stuck, or gone.
+		const alive = () => {
+			clearTimeout(timer);
+			timer = setTimeout(() => fail(new Error("plus de nouvelles du navigateur depuis 120 s")), 120_000);
+		};
+		server.on("hello", (h) => {
+			alive();
+			total = h.cases;
+			console.log(`\n${h.ua}`);
+		});
+		server.on("result", ({ name, result }) => {
+			alive();
+			if (report(name, result)) ok++;
+		});
+		server.on("checkpoint", (list) => {
+			alive();
+			reportList("point de reprise : canvas, défilement, popover", list);
+		});
+		server.on("lifecycle", (list) => {
+			alive();
+			reportList("budget, module coupé, retour par le cache", list);
+		});
+		server.on("error", (e) => {
+			alive();
+			console.log(`    erreur de la page: ${e}`);
+		});
+		alive();
+		const open = () => b.launch(`${server.origin}/lab.html?auto&r=${Date.now()}`);
+		open();
+		// Safari in the simulator sometimes leaves the URL unopened: asked once more.
+		const again = setTimeout(() => total || open(), 30_000);
+		server.on("done", () => {
+			clearTimeout(again);
+			clearTimeout(timer);
+			done({ ok, total });
+		});
 	});
 }
 
-let failed = 0;
-let pages = {};
-for (const name of engines) {
-	const browser = await ENGINES[name].launch();
-	const page = await browser.newPage();
-	await serve(page);
-	await page.goto("http://lab.test/lab.html");
-	pages = await page.evaluate(() => window.lab.pages());
-	const names = (await page.evaluate(() => window.lab.names())).filter((n) => !only || n === only);
-	const version = browser.version();
-	console.log(`\n${name} ${version}`);
-	for (const c of names) {
-		let result;
+for (const target of targets) {
+	const t0 = Date.now();
+	const b = await open(target, { port: new URL(server.origin).port });
+	let ok = 0;
+	let total = 0;
+	if (b.auto) {
 		try {
-			const todo = await page.evaluate((n) => window.lab.start(n), c);
-			const site = page.frameLocator("#site");
-			for (const [sel, text] of todo.keys) await site.locator(sel).pressSequentially(text, { delay: 5 });
-			for (const sel of todo.clicks) await site.locator(sel).click();
-			for (const [sel, value] of todo.select) await site.locator(sel).selectOption(value);
-			result = await page.evaluate(() => window.lab.end());
+			({ ok, total } = await selfRun(b));
 		} catch (e) {
-			result = { diffs: [{ path: "-", what: String(e).split("\n")[0] }], errors: [], leaks: [], prints: { bad: 0 } };
+			failed++;
+			console.log(`✗ ${e.message}`);
 		}
-		const bad = result.diffs.length || result.errors.length || result.leaks.length || result.prints.bad;
-		if (bad) failed++;
-		console.log(`${bad ? "✗" : "✓"} ${c}${bad ? "" : `  (${result.bytes} o)`}`);
-		for (const d of result.diffs) console.log(`    ${d.path}  ${d.what}: ${JSON.stringify(d.live)} ≠ ${JSON.stringify(d.copy)}`);
-		if ((only || args.includes("--tapes")) && result.tapes) for (const t of result.tapes) console.log(`    bande: ${t}`);
-		for (const e of result.errors) console.log(`    erreur: ${e}`);
-		for (const l of result.leaks) console.log(`    FUITE: ${l}`);
-		if (result.prints.bad) console.log(`    empreinte fausse ${result.prints.bad}/${result.prints.total}`);
+	} else {
+		await b.goto(`${server.origin}/lab.html`);
+		server.pages = await b.evaluate(() => window.lab.pages());
+		const names = (await b.evaluate(() => window.lab.names())).filter((n) => !only || n === only);
+		total = names.length;
+		console.log(`\n${b.version}`);
+		for (const c of names) {
+			let result;
+			try {
+				const todo = await b.evaluate((n) => window.lab.start(n), c);
+				for (const [sel, text] of todo.keys) await b.type(sel, text);
+				for (const sel of todo.clicks) await b.click(sel);
+				for (const [sel, value] of todo.select) await b.select(sel, value);
+				result = await b.evaluate(() => window.lab.end());
+			} catch (e) {
+				result = { diffs: [{ path: "-", what: String(e).split("\n")[0] }], errors: [], leaks: [], prints: { bad: 0 } };
+			}
+			if (report(c, result)) ok++;
+		}
+		if (!only) {
+			reportList("point de reprise : canvas, défilement, popover", await b.evaluate(() => window.lab.checkpoint()));
+			reportList("budget, module coupé, retour par le cache", await b.evaluate(() => window.lab.lifecycle()));
+		}
 	}
-	const kept = await page.evaluate(() => window.lab.checkpoint());
-	if (kept.length) failed++;
-	console.log(`${kept.length ? "✗" : "✓"} point de reprise : canvas, défilement, popover`);
-	for (const k of kept) console.log(`    ${k}`);
-	const life = await page.evaluate(() => window.lab.lifecycle());
-	if (life.length) failed++;
-	console.log(`${life.length ? "✗" : "✓"} budget, module coupé, retour par le cache`);
-	for (const l of life) console.log(`    ${l}`);
-	await browser.close();
+	console.log(`${ok}/${total} cas${skips ? `, ${skips} sauté(s)` : ""}, ${Math.round((Date.now() - t0) / 1000)} s`);
+	skips = 0;
+	await b.close();
 }
+server.close();
 console.log(failed ? `\n${failed} échec(s)` : "\ntout passe");
 process.exit(failed ? 1 : 0);

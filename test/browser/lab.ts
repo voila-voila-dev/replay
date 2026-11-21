@@ -19,6 +19,8 @@ interface Current {
 	errors: Array<string>;
 }
 let current: Current | undefined;
+/** Why the case started last means nothing in this browser, if it does not. */
+let skipped: string | undefined;
 
 /** Loads a page into the site frame as a served page, the way a visitor gets it. */
 async function loadSite(name: string): Promise<Win> {
@@ -53,6 +55,12 @@ async function start(name: string) {
 	const win = await loadSite(name);
 	const doc = win.document;
 	await sleep(30);
+	if (c.needs && !inSite(win, c.needs.test)(win)) {
+		current = undefined;
+		skipped = c.needs.what;
+		return { keys: [], clicks: [], select: [] };
+	}
+	skipped = undefined;
 	const errors: Array<string> = [];
 	win.addEventListener("error", (e) => errors.push(String(e.message)));
 	const wait = (ms: number) => new win.Promise<void>((r) => win.setTimeout(r, ms));
@@ -71,6 +79,7 @@ async function start(name: string) {
 }
 
 async function end() {
+	if (skipped) return { skipped, diffs: [], errors: [], leaks: [], prints: { total: 0, bad: 0 } };
 	if (!current) throw new Error("no case started");
 	const { c, win, rec, pieces, errors } = current;
 	const wait = (ms: number) => new win.Promise<void>((r) => win.setTimeout(r, ms));
@@ -252,7 +261,8 @@ async function checkpoint(): Promise<Array<string>> {
 		try {
 			open = pop.matches(":popover-open");
 		} catch {}
-		if (!open) out.push(`${where}: popover fermé`);
+		// Without the Popover API (Firefox before 125, Safari before 17), there is nothing to reopen.
+		if (!open && "showPopover" in HTMLElement.prototype) out.push(`${where}: popover fermé`);
 		if (m.next !== next) out.push(`${where}: prochain numéro ${m.next}, ${next} attendu`);
 		if ((m.nodes[9] as Text)?.data !== "menu") out.push(`${where}: texte du nœud 9`);
 	};
@@ -391,6 +401,67 @@ function census(live: Node, copy: Node, path = ""): string | null {
 	return null;
 }
 
+/**
+ * What a person does, done by the page itself where no driver reaches the browser: typing goes
+ * through `insertText`, which fires `beforeinput` and `input` as a keyboard does, at the end of
+ * the field's text.
+ */
+async function act(todo: Awaited<ReturnType<typeof start>>) {
+	if (!current) return;
+	const { win } = current;
+	const doc = win.document;
+	const find = (sel: string) => {
+		const el = doc.querySelector(sel) as HTMLElement | null;
+		if (!el) throw new Error(`no ${sel} in the page`);
+		return el;
+	};
+	for (const [sel, text] of todo.keys) {
+		const el = find(sel) as HTMLInputElement;
+		el.focus();
+		if (typeof el.setSelectionRange === "function" && typeof el.value === "string") el.setSelectionRange(el.value.length, el.value.length);
+		else {
+			const range = doc.createRange();
+			range.selectNodeContents(el);
+			range.collapse(false);
+			win.getSelection()?.removeAllRanges();
+			win.getSelection()?.addRange(range);
+		}
+		for (const ch of text) {
+			if (ch === "\n") doc.execCommand(el.isContentEditable ? "insertParagraph" : "insertText", false, "\n");
+			else doc.execCommand("insertText", false, ch);
+			await sleep(5);
+		}
+	}
+	for (const sel of todo.clicks) find(sel).click();
+	for (const [sel, value] of todo.select) {
+		const el = find(sel) as HTMLSelectElement;
+		el.value = value;
+		el.dispatchEvent(new win.Event("input", { bubbles: true }));
+		el.dispatchEvent(new win.Event("change", { bubbles: true }));
+	}
+}
+
+/** The whole suite run by the page, each result posted to the lab's server as it comes. */
+async function auto() {
+	const post = (path: string, body: unknown) =>
+		fetch(path, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+	await post("/pages", Object.fromEntries([...CASES.map((c) => [c.name, c.html]), ["__fuzz__", FUZZ_PAGE]]));
+	await post("/hello", { ua: navigator.userAgent, cases: CASES.length });
+	for (const c of CASES) {
+		let result: unknown;
+		try {
+			await act(await start(c.name));
+			result = await end();
+		} catch (e) {
+			result = { diffs: [{ path: "-", what: String(e) }], errors: [], leaks: [], prints: { bad: 0 } };
+		}
+		await post("/result", { name: c.name, result });
+	}
+	await post("/checkpoint", await checkpoint().catch((e) => [String(e)]));
+	await post("/lifecycle", await lifecycle().catch((e) => [String(e)]));
+	await post("/done", {});
+}
+
 (window as unknown as { lab: unknown }).lab = {
 	names: () => CASES.map((c) => c.name),
 	pages: () => Object.fromEntries([...CASES.map((c) => [c.name, c.html]), ["__fuzz__", FUZZ_PAGE]]),
@@ -400,3 +471,7 @@ function census(live: Node, copy: Node, path = ""): string | null {
 	checkpoint,
 	lifecycle,
 };
+if (/[?&]auto\b/.test(location.search)) {
+	addEventListener("error", (e) => void fetch("/error", { method: "POST", body: String(e.message) }));
+	auto().catch((e) => fetch("/error", { method: "POST", body: String(e?.stack || e) }));
+}
