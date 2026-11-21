@@ -1,6 +1,6 @@
 {
 	"name": "@voila.dev/replay",
-	"version": "0.1.0",
+	"version": "0.1.1",
 	"description": "Session recording and replay for the web: a small recorder, a flat tape format, a DOM-built player.",
 	"license": "MIT",
 	"type": "module",

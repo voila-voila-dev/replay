@@ -1,5 +1,11 @@
 # @voila.dev/replay
 
+## 0.1.1
+
+### Patch Changes
+
+- [#2](https://github.com/voila-voila-dev/replay/pull/2) [`087599a`](https://github.com/voila-voila-dev/replay/commit/087599ab159b32650b1a66250288b921f5e2f943) Thanks [@emilienbidet](https://github.com/emilienbidet)! - `connect` keeps the long strings a chunk refers to until the server stops asking. A long string inside a snapshot piece (a stylesheet, a picture) was dropped after the first answer, before the server, having read the piece, could ask for it: the first visitors of a page sent copies without their stylesheets.
+
 ## 0.1.0
 
 ### Minor Changes
