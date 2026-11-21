@@ -16,6 +16,8 @@ export interface PlayerOptions {
 	readonly skipIdle?: boolean;
 	/** Ms of recording between two checkpoints; a seek starts from the nearest one. */
 	readonly every?: number;
+	/** Where to load a picture or a font from, given its address on the page (see `MirrorHooks`). */
+	readonly asset?: (url: string) => string;
 }
 
 export interface Gap {
@@ -101,6 +103,7 @@ export function createPlayer(options: PlayerOptions): Player {
 	let m: Mirror = make();
 	function make() {
 		return mirror(doc, {
+			asset: options.asset,
 			pointer(x, y) {
 				cursor.style.display = "block";
 				cursor.style.transform = `translate(${x}px,${y}px)`;

@@ -12,6 +12,11 @@ export interface MirrorHooks {
 	readonly size?: (width: number, height: number) => void;
 	readonly focus?: (el: Element | null) => void;
 	readonly print?: (ok: boolean, at: number, detail: string) => void;
+	/**
+	 * Where to load a picture or a font from, given its address on the page: a copy kept when
+	 * the page was recorded outlives the file the site later renamed or replaced.
+	 */
+	readonly asset?: (url: string) => string;
 }
 
 export interface Mirror {
@@ -101,8 +106,9 @@ export function mirror(doc: Document, hooks: MirrorHooks = {}): Mirror {
 			return url;
 		}
 	};
+	const kept = (url: string) => (hooks.asset ? hooks.asset(url) : url);
 	const css = (text: string, from = base) =>
-		text.replace(CSS_URL, (_m, _q, url: string) => `url("${absolute(url, from)}")`);
+		text.replace(CSS_URL, (_m, _q, url: string) => `url("${kept(absolute(url, from))}")`);
 	const local = (el: Element) => localName.call(el);
 
 	function add(n: Node) {
@@ -126,12 +132,14 @@ export function mirror(doc: Document, hooks: MirrorHooks = {}): Mirror {
 		if (ADDRESS.test(name)) {
 			value = absolute(value);
 			if (!SAFE_URL.test(value)) value = "about:blank";
+			// A stylesheet's own address stays: its rules came on the tape, read from there.
+			else if (tag !== "link") value = kept(value);
 		} else if (name === "srcset")
 			value = value
 				.split(",")
 				.map((part) => {
 					const [url, ...rest] = part.trim().split(/\s+/);
-					return [absolute(url || ""), ...rest].join(" ");
+					return [kept(absolute(url || "")), ...rest].join(" ");
 				})
 				.join(", ");
 		else if (name === "style") value = css(value);
