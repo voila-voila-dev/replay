@@ -41,10 +41,13 @@ Recorder: Safari 15.4, Chrome and Edge 92, Firefox 90 and later. Below, `record`
 
 ```
 bun test test/unit          # format, sending, joining chunks
-npm run test:browser        # 46 cases, each also played back through a checkpoint, then the budget, a module that throws and the cache return; Chromium, WebKit and Firefox
+npm run test:browser        # 48 cases, each also played back through a checkpoint, then the budget, a module that throws and the cache return; Chromium, WebKit and Firefox
+node test/browser/visit.mjs # a visit end to end: sending, beacon on the way out, back from the cache, the copy played
 node test/browser/fuzz.mjs  # random mutations, the copy judged after each round
 npm run size
 ```
+
+The browser suites take `--target`, one or several of `chromium`, `webkit`, `firefox` (Playwright), `android` (Chrome on a running emulator, through adb), `ios` (Safari in a booted iOS Simulator), `firefox-esr` (a stock Firefox, `REPLAY_FIREFOX=/path/to/firefox`) and `device` (any browser that opens the URL printed). Where nothing drives the browser, the page runs the suite itself and posts what it finds back to the lab's server.
 
 ## License
 

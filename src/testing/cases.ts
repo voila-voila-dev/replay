@@ -19,6 +19,8 @@ export interface Case {
 	readonly select?: ReadonlyArray<readonly [string, string]>;
 	/** Strings that must never leave the page, in clear. */
 	readonly secrets?: ReadonlyArray<string>;
+	/** What the browser must offer for the case to mean anything; skipped otherwise. */
+	readonly needs?: { readonly what: string; readonly test: (w: Window & typeof globalThis) => boolean };
 }
 
 const D = (body: string, head = "") =>
@@ -642,6 +644,7 @@ export const CASES: ReadonlyArray<Case> = [
 	{
 		name: "adoptedStyleSheets",
 		group: "styles",
+		needs: { what: "feuilles constructibles (Safari 16.4)", test: (w) => "adoptedStyleSheets" in w.Document.prototype },
 		html: D('<p class="a">a</p><div id="h"></div>'),
 		run: async (d, w, wait) => {
 			const s1 = new w.CSSStyleSheet();

@@ -19,5 +19,6 @@ jobs:
       - run: bun test test/unit
       - run: npx playwright install --with-deps chromium webkit firefox
       - run: npm run test:browser
+      - run: node test/browser/visit.mjs
       - run: node test/browser/fuzz.mjs --seeds 4 --rounds 60
       - run: node scripts/size.mjs
