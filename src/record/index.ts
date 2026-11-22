@@ -175,12 +175,16 @@ export function record(w: Window, o: Options = {}): Recorder | null {
 	/** Form controls, dialogs and popovers, and the value last written for each. */
 	const fields = new Set<Element>();
 	const written = new WeakMap<Element, string | number>();
+	/** Images that pick their picture, and the address last written for each. */
+	const pictures = new Set<HTMLImageElement>();
+	let shown = new WeakMap<Element, string>();
 	/** The zone each node was recorded under: a node moved to another zone is recorded again. */
 	const recordedIn = new WeakMap<Node, Zone>();
 
 	const stars = (s: string) => s.replace(/\S/g, "*");
 	const isEl = (n: Node): n is Element => n.nodeType === 1;
 	const has = (el: Element, name: string) => N.has(el, name);
+	const isPicture = (n: Node | null) => !!n && isEl(n) && N.local(n) === "picture";
 
 	// --- Zones and masking -------------------------------------------------------------
 
@@ -420,6 +424,12 @@ export function record(w: Window, o: Options = {}): Recorder | null {
 				fields.add(el);
 				written.set(el, tag === "dialog" && has(el, "open") ? 1 : 0);
 			} else if (
+				tag === "img" &&
+				(has(el, "srcset") || isPicture(N.parent(el)))
+			) {
+				pictures.add(el as HTMLImageElement);
+				shown.delete(el);
+			} else if (
 				tag === "style" ||
 				(tag === "link" && /stylesheet/i.test(N.get(el, "rel") || ""))
 			)
@@ -601,6 +611,10 @@ export function record(w: Window, o: Options = {}): Recorder | null {
 			if (e.relatedTarget) return;
 			stamp();
 			tape.push(Op.FOCUS, 0);
+		});
+		on("load", (e: Event) => {
+			const t = target(e);
+			if (t && pictures.has(t as HTMLImageElement)) kick();
 		});
 		const typed = () => kick();
 		on("input", typed);
@@ -815,6 +829,16 @@ export function record(w: Window, o: Options = {}): Recorder | null {
 			tape.push(op, id, v);
 		});
 
+		// The picture the browser picked, never in the copy's choice: the viewer's screen is another.
+		pictures.forEach((img) => {
+			const id = ids.get(img);
+			if (!id || !img.isConnected) return void pictures.delete(img);
+			const src = img.currentSrc;
+			if (!src || src === img.src || shown.get(img) === src) return;
+			shown.set(img, src);
+			tape.push(Op.SHOWN, 2, id, src);
+		});
+
 		readSheets();
 		for (const m of modules) if (m.onSync) guard(m, () => m.onSync?.());
 
@@ -973,6 +997,8 @@ export function record(w: Window, o: Options = {}): Recorder | null {
 			left.clear();
 			gone.clear();
 			fields.clear();
+			pictures.clear();
+			shown = new WeakMap();
 			observer.takeRecords();
 			last = now();
 			t0 = Date.now() - last;

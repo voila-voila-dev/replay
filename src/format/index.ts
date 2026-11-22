@@ -74,6 +74,8 @@ export enum Op {
 	SHOT = 128,
 	/** framed: the name of a module cut off after it threw */
 	ERR = 129,
+	/** framed: id, the address of the picture an image shows, picked from its `srcset` or its `<picture>` */
+	SHOWN = 130,
 }
 
 export enum End {

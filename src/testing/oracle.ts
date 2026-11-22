@@ -174,6 +174,18 @@ export function compare(live: Document, copy: Document, o: OracleOptions = {}): 
 			)
 				continue;
 			if (side === "live" && masked && !PLAIN.test(name)) v = stars(v);
+			// The copy shows the picture the visitor's browser picked, whatever its own would.
+			if (side === "live" && name === "srcset") {
+				const parent = el.parentNode as Element | null;
+				const img = (
+					tag === "img"
+						? el
+						: tag === "source" && parent && tagOf(parent) === "picture"
+							? Array.from(parent.children).find((c) => tagOf(c) === "img")
+							: undefined
+				) as HTMLImageElement | undefined;
+				if (img?.currentSrc && img.currentSrc !== img.src) v = img.currentSrc;
+			}
 			if (URL_ATTR.test(name)) {
 				v = abs(v);
 				if (side === "live" && !SAFE_URL.test(v)) v = "about:blank";
