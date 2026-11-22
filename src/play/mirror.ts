@@ -481,6 +481,18 @@ export function mirror(doc: Document, hooks: MirrorHooks = {}): Mirror {
 					image.src = shot;
 					break;
 				}
+				case Op.SHOWN: {
+					// The picture the visitor's browser picked, whatever the viewer's screen would.
+					const el = nodes[a(2)] as Element | undefined;
+					const src: string = a(3);
+					if (!el || local(el) !== "img" || typeof src !== "string") break;
+					set(el, "srcset", src);
+					const picture = el.parentNode as Element | null;
+					if (picture && local(picture) === "picture")
+						for (const s of Array.from(picture.children))
+							if (local(s) === "source") set(s, "srcset", src);
+					break;
+				}
 				// HIDE, END, ERR and the framed ops this player does not know: nothing to build.
 			}
 		}
