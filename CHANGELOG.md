@@ -1,5 +1,11 @@
 # @voila.dev/replay
 
+## 0.3.1
+
+### Patch Changes
+
+- [#9](https://github.com/voila-voila-dev/replay/pull/9) [`e01c0b3`](https://github.com/voila-voila-dev/replay/commit/e01c0b360338f63778adb1d768e99ecfca0bd4e0) Thanks [@emilienbidet](https://github.com/emilienbidet)! - fix(play): a reference inside the page (`<use href="#icon">`, `<a href="#main">`) stays one in the copy. Made absolute, it pointed at the recorded site, which the sandboxed copy refuses to load: icons drawn with `<use>` showed empty.
+
 ## 0.3.0
 
 ### Minor Changes
