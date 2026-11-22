@@ -1,5 +1,11 @@
 # @voila.dev/replay
 
+## 0.3.0
+
+### Minor Changes
+
+- [#7](https://github.com/voila-voila-dev/replay/pull/7) [`e036911`](https://github.com/voila-voila-dev/replay/commit/e0369119b732ef0d6253e398308ce73f741c7cca) Thanks [@emilienbidet](https://github.com/emilienbidet)! - An image that picks its picture (`srcset`, `<picture>`) says which one it shows: a new framed op, `SHOWN`. The player shows that picture, whatever the viewer's screen would pick, and a server that keeps the pictures of a recording only needs that one.
+
 ## 0.2.0
 
 ### Minor Changes
