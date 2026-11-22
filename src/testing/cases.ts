@@ -151,6 +151,21 @@ export const CASES: ReadonlyArray<Case> = [
 		},
 	},
 	{
+		name: "symbole SVG repris par <use href=\"#…\">, et lien vers une ancre",
+		group: "parseur",
+		html: D(
+			'<svg width="0" height="0"><symbol id="star" viewBox="0 0 10 10"><path d="M5 0L10 10H0z"/></symbol></svg><a href="#b">aller</a><div id="a"></div><div id="b">avant</div>',
+		),
+		run: (d) => {
+			const svg = d.createElementNS("http://www.w3.org/2000/svg", "svg");
+			const use = d.createElementNS("http://www.w3.org/2000/svg", "use");
+			use.setAttribute("href", "#star");
+			svg.append(use);
+			d.getElementById("a")?.append(svg);
+			(d.getElementById("b") as Element).textContent = "après";
+		},
+	},
+	{
 		name: "les cinq pièges, présents dès le départ",
 		group: "parseur",
 		html: AB,

@@ -129,7 +129,10 @@ export function mirror(doc: Document, hooks: MirrorHooks = {}): Mirror {
 		if (/^on/i.test(name) || name.toLowerCase() === "http-equiv") return;
 		const tag = local(el);
 		if (tag === "iframe" && (name === "src" || name === "srcdoc")) return;
-		if (ADDRESS.test(name)) {
+		// A reference inside the page (`<use href="#icon">`, `<a href="#main">`) stays one: made
+		// absolute, it would point at the recorded site, which the copy may not load.
+		if (ADDRESS.test(name) && value.trim().startsWith("#")) value = value.trim();
+		else if (ADDRESS.test(name)) {
 			value = absolute(value);
 			if (!SAFE_URL.test(value)) value = "about:blank";
 			// A stylesheet's own address stays: its rules came on the tape, read from there.
