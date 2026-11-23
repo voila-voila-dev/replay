@@ -405,3 +405,12 @@ code{font:inherit;background:#fff;border:1px solid var(--rule);padding:0 5px}
 .toc em{font-style:normal;color:var(--mute);font-size:13px}
 .toc a:hover b{color:var(--volt)}
 @media (max-width:860px){.toc{grid-template-columns:1fr 1fr}.toc a+a{padding-left:0;border-left:0}.toc a:nth-child(2n){padding-left:16px;border-left:1px solid var(--rule)}}
+/* Playground: pick an article */
+.pick{display:grid;grid-template-columns:1fr auto;gap:12px;align-items:end;padding-top:24px}
+.pick .url{display:flex;flex-direction:column}
+.pick input{font:500 15px var(--mono);padding:12px 14px;border:1px solid var(--ink);background:#fff;color:var(--ink);border-radius:0;outline:none;width:100%}
+.pick input:focus{border-color:var(--volt);box-shadow:0 0 0 3px #2633ff22}
+.presets{display:flex;flex-wrap:wrap;gap:8px;padding-top:14px}
+.presets .badge{cursor:pointer;font-family:var(--mono)}
+.pick-error{color:#e5484d;font-size:13px;padding-top:8px}
+.ctas.more{margin-top:24px}

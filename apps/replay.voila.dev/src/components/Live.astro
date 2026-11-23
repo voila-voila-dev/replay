@@ -16,13 +16,16 @@ interface Props {
 	controls?: boolean;
 	stats?: boolean;
 	compact?: boolean;
+	/** Another page to record, of this origin (the playground); its natural size, and no autopilot. */
+	page?: { src: string; width: number; height: number; sources?: string[] };
 }
-const { mask = "inputs", extras = [], modules = ["cssom"], tape = false, maskPicker = false, drop = false, controls = false, stats = true, compact = false } =
+const { mask = "inputs", extras = [], modules = ["cssom"], tape = false, maskPicker = false, drop = false, controls = false, stats = true, compact = false, page } =
 	Astro.props;
 
 // The page's natural height, from what it shows: the base checkout, plus a row per extra.
-const height = 400 + (extras.includes("block") ? 58 : 0) + (extras.includes("canvas") ? 92 : 0);
-const src = extras.length ? `/demo/shop?extras=${extras.join(",")}` : "/demo/shop";
+const width = page?.width ?? 560;
+const height = page?.height ?? 400 + (extras.includes("block") ? 58 : 0) + (extras.includes("canvas") ? 92 : 0);
+const src = page?.src ?? (extras.length ? `/demo/shop?extras=${extras.join(",")}` : "/demo/shop");
 ---
 
 <div
@@ -31,8 +34,11 @@ const src = extras.length ? `/demo/shop?extras=${extras.join(",")}` : "/demo/sho
 	data-mask={mask}
 	data-extras={extras.join(",")}
 	data-modules={modules.join(",")}
+	data-width={width}
 	data-height={height}
-	style={`--ratio:560/${height}`}
+	data-autopilot={page ? "off" : undefined}
+	data-sources={page?.sources?.join(" ")}
+	style={`--ratio:${width}/${height}`}
 >
 	<div class="panes">
 		<figure class="src">

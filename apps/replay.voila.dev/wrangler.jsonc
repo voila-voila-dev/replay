@@ -3,9 +3,12 @@
 	"name": "replay-voila-dev",
 	"account_id": "3d9e9632be236005903c677f4e571f62",
 	"compatibility_date": "2026-11-01",
-	// Static Astro build, no Worker code.
+	// Static Astro build; the Worker only answers /playground/wiki/* (see worker/index.ts).
+	"main": "./worker/index.ts",
 	"assets": {
 		"directory": "./dist",
+		"binding": "ASSETS",
+		"run_worker_first": ["/playground/wiki/*"],
 		"html_handling": "drop-trailing-slash",
 		"not_found_handling": "404-page"
 	},
