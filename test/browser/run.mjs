@@ -66,6 +66,10 @@ function selfRun(b) {
 			alive();
 			reportList("budget, module coupé, retour par le cache", list);
 		});
+		server.on("shown", (list) => {
+			alive();
+			reportList("ce que la copie montre : bloc caché, canvas", list);
+		});
 		server.on("error", (e) => {
 			alive();
 			console.log(`    erreur de la page: ${e}`);
@@ -117,6 +121,7 @@ for (const target of targets) {
 		if (!only) {
 			reportList("point de reprise : canvas, défilement, popover", await b.evaluate(() => window.lab.checkpoint()));
 			reportList("budget, module coupé, retour par le cache", await b.evaluate(() => window.lab.lifecycle()));
+			reportList("ce que la copie montre : bloc caché, canvas", await b.evaluate(() => window.lab.shown()));
 		}
 	}
 	console.log(`${ok}/${total} cas${skips ? `, ${skips} sauté(s)` : ""}, ${Math.round((Date.now() - t0) / 1000)} s`);
