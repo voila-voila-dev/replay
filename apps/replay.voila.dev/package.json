@@ -9,7 +9,6 @@
 		"deploy": "bunx --bun astro build && bunx wrangler deploy"
 	},
 	"dependencies": {
-		"@voila.dev/replay": "workspace:*",
 		"astro": "^7.4.13"
 	},
 	"devDependencies": {
