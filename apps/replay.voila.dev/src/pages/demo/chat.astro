@@ -1,0 +1,44 @@
+---
+import DemoPage from "../../layouts/DemoPage.astro";
+---
+
+<DemoPage title="Chat">
+	<style is:global slot="head">
+		header { display: flex; align-items: center; gap: 10px }
+		.avatar { width: 34px; height: 34px; border-radius: 50%; background: linear-gradient(135deg, #2633ff, #a9b1ff) }
+		.status { font-size: 12px; color: #1fbf75 }
+		#log { flex: 1; display: flex; flex-direction: column; justify-content: flex-end; gap: 8px; overflow: hidden }
+		.msg { max-width: 75%; padding: 9px 13px; border-radius: 16px; background: #f1f1ec; animation: in .25s ease }
+		.msg.me { align-self: flex-end; background: #2633ff; color: #fff }
+		.typing { color: #a3a3ab; font-size: 13px; height: 18px }
+		form { display: grid; grid-template-columns: 1fr auto; gap: 10px }
+		@keyframes in { from { opacity: 0; transform: translateY(6px) } }
+	</style>
+	<header><span class="avatar"></span><div><b>Support</b><div class="status">● online</div></div></header>
+	<div id="log"></div>
+	<div class="typing" id="typing"></div>
+	<form id="send"><input id="text" autocomplete="off" placeholder="Write a message" /><button class="primary" type="submit">Send</button></form>
+	<script is:inline>
+		const log = document.getElementById("log");
+		const typing = document.getElementById("typing");
+		const replies = ["Sure, let me check.", "Your order left this morning.", "It should arrive Thursday.", "Anything else?", "Happy to help!"];
+		let r = 0;
+		const say = (text, me) => {
+			const m = document.createElement("div");
+			m.className = me ? "msg me" : "msg";
+			m.textContent = text;
+			log.append(m);
+			while (log.children.length > 7) log.firstElementChild.remove();
+		};
+		say("Hi! How can I help?", false);
+		document.getElementById("send").addEventListener("submit", (e) => {
+			e.preventDefault();
+			const input = document.getElementById("text");
+			if (!input.value.trim()) return;
+			say(input.value.trim(), true);
+			input.value = "";
+			typing.textContent = "Support is typing…";
+			setTimeout(() => { typing.textContent = ""; say(replies[r++ % replies.length], false); }, 900);
+		});
+	</script>
+</DemoPage>

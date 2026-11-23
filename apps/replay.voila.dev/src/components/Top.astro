@@ -1,44 +1,7 @@
 ---
-import { repo } from "../data/site";
-import { starsOf } from "../data/github";
+import Top from "@voila.dev/site/components/Top.astro";
+import { links, repo, siteName } from "../data/site";
 import Logo from "./Logo.astro";
-
-const links = [
-	["/demos", "Demos"],
-	["/playground", "Playground"],
-	["/benchmark", "Benchmark"],
-	["/#features", "Features"],
-];
-const slug = new URL(repo).pathname.slice(1);
-const stars = await starsOf(slug, 0);
-// Early on, nudge visitors to be among the first stargazers.
-const hint = (n: number) => (n === 0 ? "Be the first to star" : n < 25 ? "Be one of the first" : "");
 ---
 
-<div class="top">
-	<a href="/" class="crumb brand"><Logo />replay</a>
-	<nav>{links.map(([href, label]) => <a href={href}>{label}</a>)}</nav>
-	<a class="stars" href={repo} data-repo={slug}>
-		<span class="stars-hint">{hint(stars)}</span>
-		<span class="stars-btn"><span aria-hidden="true">★</span> Star<span class="stars-count">{stars}</span></span>
-	</a>
-</div>
-
-<script>
-	// Refresh the star count between deploys; keep the build-time value if GitHub is unreachable.
-	const link = document.querySelector<HTMLAnchorElement>(".stars");
-	const hint = (n: number) => (n === 0 ? "Be the first to star" : n < 25 ? "Be one of the first" : "");
-	if (link?.dataset.repo) {
-		fetch(`https://api.github.com/repos/${link.dataset.repo}`)
-			.then((response) => (response.ok ? response.json() : null))
-			.then((body: { stargazers_count?: number } | null) => {
-				const n = body?.stargazers_count;
-				if (typeof n !== "number") return;
-				const count = link.querySelector(".stars-count");
-				const text = link.querySelector(".stars-hint");
-				if (count) count.textContent = String(n);
-				if (text) text.textContent = hint(n);
-			})
-			.catch(() => {});
-	}
-</script>
+<Top name={siteName} links={links} repo={repo}><Logo slot="logo" /></Top>

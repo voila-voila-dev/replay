@@ -1,0 +1,85 @@
+---
+title: Your endpoint
+description: What the endpoint receives, what it answers, and how it gives chunks back to the player.
+---
+
+replay ships no server: the endpoint is yours, in any language. It does three things: keep the chunks of each page view, keep the blobs (long strings and snapshot pieces) by hash, and ask for the blobs it lacks.
+
+## What it receives
+
+A `POST` whose body is JSON, gzipped when it starts with the bytes `1f 8b`:
+
+```ts
+interface Envelope {
+  v: 2;
+  url: string;
+  pv: string;          // the page view
+  property?: string;
+  visitor?: string;    // at most 64 characters
+  seq?: number;        // rank of the chunk in the page view: 0, 1, 2…
+  base?: number;       // the number its first node takes
+  startedAt?: number;
+  endedAt?: number;
+  tape?: WireTape;     // [hash] for a long string, [hash, 1] for a piece
+  blobs?: Record<string, string>; // what you asked for
+  last?: true;         // the beacon on the way out
+}
+```
+
+## What it answers
+
+Nothing (`204`), or JSON:
+
+```ts
+interface Answer {
+  need?: string[]; // the hashes you do not hold yet
+  snap?: boolean;  // you saw a hole: the page sends a new snapshot
+}
+```
+
+A piece can itself refer to long strings: once you read a piece you asked for, ask again for what it refers to. A beacon (`last: true`) cannot be answered; it may carry again a chunk that left before it, with the same `seq`: keep the later one.
+
+## A minimal endpoint
+
+```ts
+import { gunzipSync } from "node:zlib";
+
+const views = new Map<string, Array<{ seq: number; base: number; tape: unknown[] }>>();
+const blobs = new Map<string, string>();
+const hashes = (tape: unknown[] = []) => tape.filter(Array.isArray).map((t) => (t as string[])[0]);
+
+export function collect(raw: Buffer): string {
+  const body = raw[0] === 0x1f && raw[1] === 0x8b ? gunzipSync(raw) : raw;
+  const env = JSON.parse(body.toString("utf8"));
+  for (const [h, v] of Object.entries(env.blobs ?? {})) blobs.set(h, v as string);
+
+  let need: string[] = [];
+  if (env.tape) {
+    const list = views.get(env.pv) ?? [];
+    const again = list.findIndex((c) => c.seq === env.seq); // a beacon may resend a chunk
+    if (again >= 0) list.splice(again, 1);
+    list.push({ seq: env.seq, base: env.base, tape: env.tape });
+    views.set(env.pv, list);
+    need = hashes(env.tape).filter((h) => !blobs.has(h));
+  } else if (env.blobs) {
+    for (const text of Object.values(env.blobs)) {
+      try { need.push(...hashes(JSON.parse(text as string)).filter((h) => !blobs.has(h))); } catch {}
+    }
+  }
+  return need.length && !env.last ? JSON.stringify({ need }) : "";
+}
+```
+
+## Back to the player
+
+`resolve` puts back what the wire replaced by hashes:
+
+```ts
+import { resolve } from "@voila.dev/replay/format";
+
+const chunks = views.get(pv)!
+  .sort((a, b) => a.seq - b.seq)
+  .map((c) => ({ seq: c.seq, base: c.base, tape: resolve(c.tape, (h) => blobs.get(h)) }));
+```
+
+`resolve` throws `MissingBlob` on a hash it cannot find: a chunk you cannot resolve is a hole, leave it out and the player says so.

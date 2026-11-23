@@ -1,5 +1,8 @@
 ---
-import CodeBlock from "../components/CodeBlock.astro";
+import Bars from "@voila.dev/site/components/Bars.astro";
+import CodeBlock from "@voila.dev/site/components/CodeBlock.astro";
+import Figs from "@voila.dev/site/components/Figs.astro";
+import PageHero from "@voila.dev/site/components/PageHero.astro";
 import Cta from "../components/Cta.astro";
 import Footer from "../components/Footer.astro";
 import Top from "../components/Top.astro";
@@ -11,9 +14,9 @@ const pad = (i: number) => String(i + 1).padStart(2, "0");
 const n = (v: number | null, d = 0) => (v == null ? "n/a" : v.toLocaleString("en-US", { minimumFractionDigits: d, maximumFractionDigits: d }));
 const kb = (bytes: number | null) => (bytes == null ? "n/a" : `${n(bytes / 1000, 1)} KB`);
 const times = (a: number | null, b: number | null) => (a && b ? `${n(a / b, 1)}×` : "n/a");
-const maxStart = Math.max(...realPages.map((p) => p.rrweb.longest ?? 0));
 const heaviest = realPages[realPages.length - 1];
 const mem = bench.memory?.pages.filter((p) => realPages.some((r) => r.id === p.id)) ?? [];
+const memory = mem[mem.length - 1];
 
 const rows: [string, (p: (typeof realPages)[number]) => [string, string]][] = [
 	["Longest task at start", (p) => [`${n(p.replay.longest)} ms`, `${n(p.rrweb.longest)} ms`]],
@@ -37,12 +40,14 @@ const weights: [string, number | null, string][] = [
 >
 	<div class="in">
 		<Top />
-		<header class="phero solo"><h1>Benchmark</h1></header>
-		<div class="pintro">
-			<p>Same pages, same masking, two recorders.</p>
-			<div><span class="k">Against</span>rrweb {bench.rrweb.version} (@rrweb/record, from npm)</div>
-			<div><span class="k">Runs</span>Chromium {bench.chromium.split(".")[0]}, CPU ×{bench.throttle}, median of {bench.runs}, {bench.date}</div>
-		</div>
+		<PageHero
+			title="Benchmark"
+			lead="Same pages, same masking, two recorders."
+			facts={[
+				{ label: "Against", value: `rrweb ${bench.rrweb.version} (@rrweb/record, from npm)` },
+				{ label: "Runs", value: `Chromium ${bench.chromium.split(".")[0]}, CPU ×${bench.throttle}, median of ${bench.runs}, ${bench.date}` },
+			]}
+		/>
 	</div>
 
 	<main class="in">
@@ -53,45 +58,30 @@ const weights: [string, number | null, string][] = [
 				<p>shorter freeze than rrweb on {headline.page}: {n(headline.replayStart)} ms against {n(headline.rrwebStart)} ms, on a phone-speed CPU.</p>
 			</div>
 
-			<div class="bars" role="table" aria-label="Longest main-thread task when recording starts">
-				<div class="bars-head" role="row">
-					<span role="columnheader">Page</span><span role="columnheader">Longest task in the 1.5 s after start</span><span role="columnheader" class="u">Elements</span>
-				</div>
-				{
-					realPages.map((p) => (
-						<>
-							<div class="bar ours" role="row">
-								<span role="cell"><b>replay</b><small>{p.name}</small></span>
-								<span role="cell" class="track-bar"><i style={`width:${((p.replay.longest ?? 0) / maxStart) * 100}%`} /><em>{n(p.replay.longest)} ms</em></span>
-								<span role="cell" class="u">{n(p.elements)}</span>
-							</div>
-							<div class="bar" role="row">
-								<span role="cell"><b>rrweb</b><small>{p.name}</small></span>
-								<span role="cell" class="track-bar"><i style={`width:${((p.rrweb.longest ?? 0) / maxStart) * 100}%`} /><em>{n(p.rrweb.longest)} ms</em></span>
-								<span role="cell" class="u">{n(p.elements)}</span>
-							</div>
-						</>
-					))
-				}
-			</div>
+			<Bars
+				label="Longest main-thread task when recording starts"
+				head={["Page", "Longest task in the 1.5 s after start", "Elements"]}
+				rows={realPages.flatMap((p) => [
+					{ name: "replay", detail: p.name, value: p.replay.longest ?? 0, display: `${n(p.replay.longest)} ms`, right: n(p.elements), ours: true },
+					{ name: "rrweb", detail: p.name, value: p.rrweb.longest ?? 0, display: `${n(p.rrweb.longest)} ms`, right: n(p.elements) },
+				])}
+			/>
 			<p class="note">
 				A task over 50 ms is one the visitor can feel: a click that waits, a scroll that stutters. Measured from a Chromium trace limited to task
 				boundaries, with the CPU slowed 4× (DevTools throttling) to stand for a mid-range phone. Without recorder, the longest task on these pages is
 				2 to 4 ms.
 			</p>
 
-			<div class="figs">
-				<div><strong>{sizes.replay.send} KB</strong><span class="k">recorder + sending, gzip (rrweb record alone: {sizes.rrweb.record} KB)</span></div>
-				<div><strong>{n(heaviest.replay.tbt)} ms</strong><span class="k">total blocking time on {heaviest.name} (rrweb: {n(heaviest.rrweb.tbt)} ms)</span></div>
-				<div><strong>{times(heaviest.rrweb.mutationsGzip, heaviest.replay.mutationsGzip)}</strong><span class="k">fewer bytes for the same 600 changes</span></div>
-				{
-					mem.length ? (
-						<div><strong>{n(mem[mem.length - 1].replay, 1)} MB</strong><span class="k">memory held after 10 min on {mem[mem.length - 1].name} (rrweb: {n(mem[mem.length - 1].rrweb, 1)} MB)</span></div>
-					) : (
-						<div><strong>{bench.runs}</strong><span class="k">runs per measure, median</span></div>
-					)
-				}
-			</div>
+			<Figs
+				items={[
+					{ value: `${sizes.replay.send} KB`, label: `recorder + sending, gzip (rrweb record alone: ${sizes.rrweb.record} KB)` },
+					{ value: `${n(heaviest.replay.tbt)} ms`, label: `total blocking time on ${heaviest.name} (rrweb: ${n(heaviest.rrweb.tbt)} ms)` },
+					{ value: times(heaviest.rrweb.mutationsGzip, heaviest.replay.mutationsGzip), label: "fewer bytes for the same 600 changes" },
+					memory
+						? { value: `${n(memory.replay, 1)} MB`, label: `memory held after 10 min on ${memory.name} (rrweb: ${n(memory.rrweb, 1)} MB)` }
+						: { value: String(bench.runs), label: "runs per measure, median" },
+				]}
+			/>
 		</section>
 
 		<section id="numbers" class="feat">

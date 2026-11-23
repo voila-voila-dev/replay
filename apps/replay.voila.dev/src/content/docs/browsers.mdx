@@ -1,0 +1,26 @@
+---
+title: Browsers
+description: Where the recorder runs, where it steps aside, and where the player plays.
+---
+
+## The recorder
+
+Safari 15.4, Chrome and Edge 92, Firefox 90 and later. Below, `record` returns `null` and does nothing else: no error, no listener, no cost for the visitor.
+
+`supported(window)` says it before you load anything else:
+
+```ts
+import { record, supported } from "@voila.dev/replay/record";
+
+if (supported(window)) startRecording();
+```
+
+## The player
+
+The same browsers. The copy is an iframe with `sandbox="allow-same-origin"`: no scripts, no forms, no navigation.
+
+## What the suite covers
+
+Every push runs 48 cases in Chromium, WebKit and Firefox through Playwright, each also played back through a checkpoint, then the budget, a module that throws, the return from the back/forward cache, and what the copy shows beyond its tree (layout, canvas). A fuzzer applies random mutations and judges the copy after each round.
+
+The browser suites also take `android` (Chrome in a running emulator), `ios` (Safari in a booted simulator), `firefox-esr` and `device`: any browser that opens the URL printed, where the page runs the suite itself and posts what it finds.

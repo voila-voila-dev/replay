@@ -1,7 +1,7 @@
 // Live demos: the demo checkout, in an iframe, is recorded by the library of this repo and played
 // back next to it, in a sandboxed copy, a fraction of a second behind. Every demo on the site is
-// one `[data-live]` block (see Live.astro); its data attributes pick the mask, the modules, the
-// extras of the page and the controls shown.
+// one `[data-live]` block (see Live.astro); its data attributes pick the app recorded, the mask,
+// the modules and the controls shown.
 import { type Chunk, length, Op, type Tape } from "@voila.dev/replay/format";
 import { canvas, cssom, shadow } from "@voila.dev/replay/modules";
 import { createPlayer, type Player } from "@voila.dev/replay/play";
@@ -21,30 +21,83 @@ type Step =
 	| { kind: "click"; on: string }
 	| { kind: "type"; into: string; text: string }
 	| { kind: "clear"; into: string }
-	| { kind: "sign" }
+	| { kind: "move"; to: string }
+	| { kind: "draw"; row: number }
+	| { kind: "wipe" }
 	| { kind: "wait"; ms: number };
 
-/** What the autopilot does in the demo checkout, in a loop, until someone takes over. */
-function script(extras: ReadonlyArray<string>): Step[] {
-	return [
+/** What the autopilot does in each demo app (src/pages/demo), in a loop, until someone takes over. */
+const SCRIPTS: Record<string, Step[]> = {
+	shop: [
 		{ kind: "wait", ms: 600 },
 		{ kind: "click", on: '[data-q="1"]' },
 		{ kind: "wait", ms: 250 },
 		{ kind: "click", on: '[data-q="1"]' },
 		{ kind: "type", into: 'input[name="email"]', text: "ada@example.com" },
-		...(extras.includes("unmask") ? [{ kind: "type", into: 'input[name="coupon"]', text: "SPRING" } as Step] : []),
 		{ kind: "type", into: 'input[name="card"]', text: "4242 4242 4242 4242" },
-		...(extras.includes("canvas") ? [{ kind: "sign" } as Step] : []),
 		{ kind: "click", on: ".pay" },
 		{ kind: "wait", ms: 1800 },
 		{ kind: "click", on: '[data-q="-1"]' },
 		{ kind: "click", on: '[data-q="-1"]' },
 		{ kind: "clear", into: 'input[name="email"]' },
-		{ kind: "clear", into: 'input[name="coupon"]' },
 		{ kind: "clear", into: 'input[name="card"]' },
 		{ kind: "wait", ms: 900 },
-	];
-}
+	],
+	todo: [
+		{ kind: "wait", ms: 500 },
+		{ kind: "type", into: "#new", text: "Buy bread" },
+		{ kind: "click", on: "#add button" },
+		{ kind: "type", into: "#new", text: "Call the bank" },
+		{ kind: "click", on: "#add button" },
+		{ kind: "click", on: "#list li:nth-child(2) input" },
+		{ kind: "wait", ms: 700 },
+		{ kind: "click", on: "#list li:nth-child(1) button" },
+		{ kind: "wait", ms: 900 },
+	],
+	signup: [
+		{ kind: "wait", ms: 500 },
+		{ kind: "type", into: 'input[name="name"]', text: "Ada Lovelace" },
+		{ kind: "type", into: 'input[name="email"]', text: "ada@example.com" },
+		{ kind: "type", into: 'input[name="password"]', text: "correct horse" },
+		{ kind: "type", into: 'input[name="card"]', text: "4242 4242 4242 4242" },
+		{ kind: "type", into: 'input[name="referral"]', text: "FRIEND10" },
+		{ kind: "click", on: "#go" },
+		{ kind: "wait", ms: 1600 },
+		{ kind: "clear", into: 'input[name="name"]' },
+		{ kind: "clear", into: 'input[name="email"]' },
+		{ kind: "clear", into: 'input[name="password"]' },
+		{ kind: "clear", into: 'input[name="card"]' },
+		{ kind: "clear", into: 'input[name="referral"]' },
+		{ kind: "wait", ms: 700 },
+	],
+	chat: [
+		{ kind: "wait", ms: 600 },
+		{ kind: "type", into: "#text", text: "Where is my order?" },
+		{ kind: "click", on: "#send button" },
+		{ kind: "wait", ms: 2000 },
+		{ kind: "type", into: "#text", text: "Great, thanks!" },
+		{ kind: "click", on: "#send button" },
+		{ kind: "wait", ms: 2200 },
+	],
+	dashboard: [
+		{ kind: "move", to: "#orders" },
+		{ kind: "wait", ms: 1500 },
+		{ kind: "move", to: "#revenue" },
+		{ kind: "wait", ms: 1500 },
+		{ kind: "move", to: ".bars i:nth-child(10)" },
+		{ kind: "wait", ms: 1500 },
+	],
+	draw: [
+		{ kind: "click", on: '[data-color="#2633ff"]' },
+		{ kind: "draw", row: 0.3 },
+		{ kind: "click", on: '[data-color="#e5484d"]' },
+		{ kind: "draw", row: 0.55 },
+		{ kind: "click", on: '[data-color="#1fbf75"]' },
+		{ kind: "draw", row: 0.8 },
+		{ kind: "wait", ms: 1500 },
+		{ kind: "wipe" },
+	],
+};
 
 /** A fake pointer over the source page: it sends real pointer events, which the recorder writes. */
 class Pilot {
@@ -143,23 +196,25 @@ class Pilot {
 		el.blur();
 	}
 
-	/** A loop of a signature across the canvas, drawn with real pointer events. */
-	async sign() {
+	/** A wave across the canvas at `row` (0 top, 1 bottom), drawn with real pointer events. */
+	async draw(row: number) {
 		const pad = this.doc.querySelector("canvas");
 		if (!pad || !pad.offsetParent) return;
-		(this.frame.contentWindow as Window & { clearSignature?: () => void }).clearSignature?.();
 		const r = pad.getBoundingClientRect();
-		await this.glide(r.left + 24, r.top + r.height * 0.6);
+		const y0 = r.top + r.height * row;
+		await this.glide(r.left + 30, y0);
 		this.send("pointerdown", pad);
-		const points = 46;
+		const points = 50;
 		for (let i = 1; i <= points && !this.taken; i++) {
 			const t = i / points;
-			const x = r.left + 24 + t * (r.width * 0.55);
-			const y = r.top + r.height * (0.55 - 0.28 * Math.sin(t * Math.PI * 5) * (1 - t * 0.4));
-			await this.glide(x, y, 1, 18);
+			await this.glide(r.left + 30 + t * (r.width - 60), y0 - r.height * 0.09 * Math.sin(t * Math.PI * 4), 1, 16);
 		}
 		this.send("pointerup", pad);
 		await sleep(200);
+	}
+
+	wipe() {
+		(this.frame.contentWindow as Window & { clearSignature?: () => void }).clearSignature?.();
 	}
 
 	async run() {
@@ -173,7 +228,9 @@ class Pilot {
 				if (s.kind === "click") await this.click(s.on);
 				else if (s.kind === "type") await this.type(s.into, s.text);
 				else if (s.kind === "clear") this.clear(s.into);
-				else if (s.kind === "sign") await this.sign();
+				else if (s.kind === "move") await this.move(s.to);
+				else if (s.kind === "draw") await this.draw(s.row);
+				else if (s.kind === "wipe") this.wipe();
 				else await sleep(s.ms);
 			}
 		}
@@ -233,7 +290,7 @@ function mount(box: HTMLElement) {
 	if (!pane || !scaler || !frame || !stage || !dot) return;
 	const width = Number(box.dataset.width || PAGE_WIDTH);
 	const height = Number(box.dataset.height || 400);
-	const extras = (box.dataset.extras || "").split(",").filter(Boolean);
+	const app = box.dataset.app || "shop";
 	const modules = (box.dataset.modules || "cssom").split(",").filter((m) => m in MODULES);
 	const maskSelect = box.querySelector<HTMLSelectElement>("[data-mask-select]");
 	const dropButton = box.querySelector<HTMLButtonElement>("[data-drop]");
@@ -397,7 +454,7 @@ function mount(box: HTMLElement) {
 		}
 		start();
 		if (autopilot && !pilot) {
-			pilot = new Pilot(frame, dot, script(extras));
+			pilot = new Pilot(frame, dot, SCRIPTS[app] ?? []);
 			pilot.visible = onScreen;
 			pilot.run();
 		}

@@ -1,0 +1,63 @@
+---
+title: Recording
+description: record(window, options), and what the recorder writes, when.
+---
+
+```ts
+import { record } from "@voila.dev/replay/record";
+
+const rec = record(window, { mask: "inputs" });
+```
+
+## Options
+
+| Option | Default | What |
+| --- | --- | --- |
+| `mask` | `"inputs"` | What is hidden: `inputs` (what is typed), `text` (every text too), `none`. See [Privacy](/docs/privacy) |
+| `maskAttr` | `"data-va-mask"` | Text and attributes under an element with this attribute are recorded as stars |
+| `blockAttr` | `"data-va-block"` | An element with this attribute is recorded as an empty box of its size |
+| `unmaskAttr` | `"data-va-unmask"` | A field under this attribute is recorded in clear (never a password or a card number) |
+| `rate` | `50` | The page is read at most once per this many milliseconds |
+| `budget` | `8_000_000` | Bytes of tape, roughly, a page view may take before recording stops |
+| `printEvery` | `30_000` | Milliseconds between two fingerprints of the page; `0`: none |
+| `slice` | | Milliseconds a read of the mutations may take before it hands back to the page |
+| `modules` | `[]` | See [Modules](/docs/modules) |
+
+## The recorder
+
+| Member | What |
+| --- | --- |
+| `snap()` | Records the page as it is and starts numbering nodes again. Send it first, and again when asked |
+| `drain()` | What happened since the last call |
+| `stop(reason?)` | Stops; the reason (`End.Consent`, `End.Budget`, `End.Network`) is written for the next drain |
+| `stopped` | Whether it stopped |
+| `needsSnap` | True when the next thing to send must be a new snapshot |
+
+Both `snap()` and `drain()` return `{ tape, base, startedAt, endedAt }`; a snapshot also has `cuts`, where the sender may cut it into pieces.
+
+## When things are written
+
+The page is **read at rest**: the `MutationObserver` only notes what changed, and the page is read at most every `rate` ms. What the visitor does (pointer, taps, scroll, focus, size) is written at once, with its own tick.
+
+## A page view, start to end
+
+- **Budget.** Past `budget`, `END 2` goes on the next tape and recording stops.
+- **A module that throws** is cut alone: `ERR` and its name go on the tape, said again in each snapshot, and the rest goes on. If it broke the numbering, `needsSnap` turns true.
+- **Back from the back/forward cache**, the beacon on the way out may not have held all the tape: `needsSnap` turns true on `pageshow` with `persisted`, and the page view goes on from a new snapshot.
+
+```ts
+addEventListener("pageshow", (e) => {
+  if (e.persisted && rec.needsSnap) link.send(rec.snap());
+});
+```
+
+## Consent
+
+Start the recorder only once the visitor agreed, and stop it if they take it back: the player shows the recording ending there.
+
+```ts
+import { End } from "@voila.dev/replay/format";
+
+rec.stop(End.Consent);
+link.leave(rec.drain());
+```

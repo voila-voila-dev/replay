@@ -1,111 +1,65 @@
 ---
-import CodeBlock from "../components/CodeBlock.astro";
+import PageHero from "@voila.dev/site/components/PageHero.astro";
+import Section from "@voila.dev/site/components/Section.astro";
+import Toc from "@voila.dev/site/components/Toc.astro";
 import Cta from "../components/Cta.astro";
 import Footer from "../components/Footer.astro";
 import Live from "../components/Live.astro";
 import Top from "../components/Top.astro";
-import { repo, version } from "../data/site";
-import { demoSnippet } from "../data/snippets";
+import { version } from "../data/site";
 import Base from "../layouts/Base.astro";
 
 const index = [
-	["live", "Live", "The tape, op by op"],
-	["privacy", "Privacy", "Masks, blocks, unmasks"],
-	["player", "Player", "Pause, speed, seek"],
-	["holes", "Holes", "A chunk lost on purpose"],
-	["modules", "Modules", "Shadow DOM, CSSOM"],
+	{ id: "live", name: "Live", text: "A todo list, op by op" },
+	{ id: "privacy", name: "Privacy", text: "A sign-up form" },
+	{ id: "player", name: "Player", text: "A support chat" },
+	{ id: "holes", name: "Holes", text: "A live dashboard" },
+	{ id: "modules", name: "Modules", text: "A sketch pad" },
 ];
 ---
 
 <Base
 	title="replay demos · record and play back, live"
-	description="Live demos of @voila.dev/replay: a checkout recorded and played back next to it. The tape op by op, masking and blocking, the player's controls, lost chunks, shadow DOM. The real library, in your browser."
+	description="Five small apps recorded by @voila.dev/replay and played back next to them, in your browser: a todo list, a sign-up form, a chat, a live dashboard, a sketch pad."
 >
 	<div class="in">
 		<Top />
-		<header class="phero solo"><h1>Demos</h1></header>
-		<div class="pintro">
-			<p>The real library, running in your browser.</p>
-			<div><span class="k">Recorded</span>A small checkout, in an iframe</div>
-			<div><span class="k">Version</span>@voila.dev/replay {version}, built from this repo</div>
-		</div>
-		<nav class="toc">{index.map(([id, name, text], i) => <a href={`#${id}`}><span class="n">{String(i + 1).padStart(2, "0")}</span><b>{name}</b><em>{text}</em></a>)}</nav>
+		<PageHero
+			title="Demos"
+			lead="Five small apps, recorded in your browser."
+			facts={[
+				{ label: "Left", value: "The app. Use it." },
+				{ label: "Right", value: `Its copy, by @voila.dev/replay ${version}` },
+			]}
+		/>
+		<Toc items={index} />
 	</div>
 
 	<main class="in">
-		<section id="live">
-			<div class="head"><h2>Live</h2><span>The tape, op by op</span></div>
-			<p class="claim lead">Click, type, pay. Every change lands on a flat tape, and the copy is rebuilt from it.</p>
-			<Live tape />
-			<p class="note">
-				A snapshot first, then a drain every 250 ms. Ops are an opcode and its operands: <code>E</code> makes an element, <code>TEXT</code> changes a
-				text, <code>VAL</code> a typed value, <code>MOVE</code> and <code>TAP</code> are the pointer, <code>TICK</code> is time. The copy is a sandboxed
-				iframe without scripts, built through the DOM API, never through the HTML parser.
-			</p>
-		</section>
+		<Section id="live" title="Live" tag="The tape, op by op">
+			<p class="claim lead">Add a task, tick it, delete it. Each change is a few ops.</p>
+			<Live app="todo" tape />
+		</Section>
 
-		<section id="privacy">
-			<div class="head"><h2>Privacy</h2><span>In the core, before any module</span></div>
-			<p class="claim lead">Type in the card field. What you type never leaves the page.</p>
-			<Live maskPicker extras={["block", "unmask"]} />
-			<div class="what-grid how-grid">
-				<div><span class="k">inputs (default)</span>Typed values leave as six stars, whatever their length: not even the length leaves. The page's own text stays readable.</div>
-				<div><span class="k">text</span>All text too. Only the layout and the pointer are left. Switch the mask above.</div>
-				<div><span class="k">Always</span>Passwords, card numbers, one-time codes and hidden fields, whatever the mode. Here, the card field is <code>cc-number</code>.</div>
-			</div>
-			<div class="what-grid how-grid">
-				<div><span class="k">data-va-block</span>The saved card is never read: the copy gets an empty box of the same size.</div>
-				<div><span class="k">data-va-unmask</span>The coupon stays readable, even under the default mask: it says nothing about the visitor.</div>
-				<div><span class="k">data-va-mask</span>Masks the text of an element and everything in it, whatever the mode.</div>
-			</div>
-		</section>
+		<Section id="privacy" title="Privacy" tag="Masked in the core">
+			<p class="claim lead">The password and the card never leave the page. The balance is never read.</p>
+			<Live app="signup" maskPicker />
+		</Section>
 
-		<section id="player">
-			<div class="head"><h2>Player</h2><span>From the nearest checkpoint</span></div>
-			<p class="claim lead">Pause, rewind, play at 4×. Seeking back does not replay from the start.</p>
-			<Live controls stats={false} />
-			<p class="note">
-				Every 10 s of tape, the player keeps a checkpoint: a copy of the rebuilt page, its node numbers, and what a copy does not carry (constructed
-				sheets, canvas pixels, modal dialogs and popovers, scroll positions, frames). A seek starts from the nearest checkpoint or snapshot before it.
-				Past 64 checkpoints, one in two goes. With <em>skip idle</em>, a stretch of more than 5 s without anything happening plays as one.
-			</p>
-		</section>
+		<Section id="player" title="Player" tag="Pause, speed, seek">
+			<p class="claim lead">Rewind the conversation. Seeking starts from the nearest checkpoint.</p>
+			<Live app="chat" controls stats={false} />
+		</Section>
 
-		<section id="holes">
-			<div class="head"><h2>Holes</h2><span>Said, not replayed</span></div>
-			<p class="claim lead">Networks lose things. A replay that does not say so shows a page that never existed.</p>
-			<Live drop controls />
-			<p class="note">
-				Each chunk carries its rank and the number its first node takes. When one is missing, the player marks a hole (in red on the seek bar) and waits
-				for the next snapshot, rather than apply changes to nodes it never received. Here the recorder takes a new snapshot 2 s after the loss; in
-				production, <code>connect</code> calls <code>onSnap</code> when the server saw a hole.
-			</p>
-		</section>
+		<Section id="holes" title="Holes" tag="Said, not replayed">
+			<p class="claim lead">Lose a chunk. The copy stops and says so, until the next snapshot.</p>
+			<Live app="dashboard" drop controls />
+		</Section>
 
-		<section id="modules">
-			<div class="head"><h2>Modules</h2><span>Only what your pages use</span></div>
-			<p class="claim lead">A badge in a shadow root reaches the copy. Load the module, nothing else.</p>
-			<Live extras={["shadow"]} modules={["cssom", "shadow"]} />
-			<div class="what-grid how-grid">
-				<div><span class="k">shadow()</span>Shadow roots, attached before or after the recording starts. 0.2 KB.</div>
-				<div><span class="k">cssom()</span>Rules added by script, <code>replaceSync</code> and constructed sheets. 0.5 KB.</div>
-				<div><span class="k">iframes()</span>Same-origin frames, recorded as part of the page. 0.2 KB.</div>
-			</div>
-		</section>
-
-		<section id="source">
-			<div class="head"><h2>Source</h2><span>What runs on this page</span></div>
-			<div class="arch-grid code-grid">
-				<CodeBlock code={demoSnippet} />
-				<div>
-					<p class="note">
-						No server here: chunks go straight from the recorder to the player. In production, <code>connect</code> sends them to your endpoint,
-						gzipped where the browser can, with long strings and snapshot pieces by hash.
-					</p>
-					<p class="note"><a href={repo}>Code on GitHub ↗</a></p>
-				</div>
-			</div>
-		</section>
+		<Section id="modules" title="Modules" tag="Shadow DOM, canvas">
+			<p class="claim lead">Draw. The canvas and the counter in its shadow root reach the copy.</p>
+			<Live app="draw" modules={["cssom", "shadow", "canvas"]} />
+		</Section>
 
 		<Cta />
 	</main>

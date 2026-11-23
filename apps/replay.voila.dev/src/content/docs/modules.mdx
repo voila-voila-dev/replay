@@ -1,0 +1,38 @@
+---
+title: Modules
+description: What only some pages need, loaded only where it is needed.
+---
+
+```ts
+import { canvas, cssom, iframes, shadow } from "@voila.dev/replay/modules";
+
+record(window, { modules: [shadow(), iframes(), cssom()] });
+```
+
+| Module | What | gzip |
+| --- | --- | --- |
+| `shadow()` | Open shadow roots, attached before or after recording starts | 0.2 KB |
+| `iframes()` | Same-origin frames, recorded as part of the page | 0.2 KB |
+| `cssom()` | What scripts do to stylesheets: `insertRule`, `deleteRule`, `replace`, `replaceSync`, `adoptedStyleSheets`. CSS-in-JS needs it | 0.5 KB |
+| `canvas(everyMs = 500, quality = 0.5)` | 2D canvases as pictures, at most every `everyMs`. Never in a masked or blocked zone | 0.2 KB |
+
+A canvas that drew something from another origin cannot be read: it is left out.
+
+## When a module fails
+
+A module that throws is cut alone, once, and named on the tape (`ERR`). The recording goes on without it. If it failed while numbering nodes, `needsSnap` turns true and the next snapshot starts the copy again.
+
+## Writing one
+
+A module is an object with a `name` and the hooks it needs:
+
+| Hook | When |
+| --- | --- |
+| `setup(kit)` | Once, as the recorder starts |
+| `onElement(el, zone)` | On each element, once its attributes are on the tape and before its children |
+| `inner(node)` | The tree an element holds besides its children: a shadow root, a frame's document |
+| `onSync()` | At the end of each read at rest |
+| `onSnap()` | At the end of each snapshot |
+| `onStop()` | When the recorder stops |
+
+The `kit` gives what a module needs to write on the tape through the masking rule. Read `src/modules` in the repository for four complete examples.

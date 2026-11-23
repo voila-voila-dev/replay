@@ -1,0 +1,34 @@
+---
+import DemoPage from "../../layouts/DemoPage.astro";
+---
+
+<DemoPage title="Sign up">
+	<style is:global slot="head">
+		.grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px }
+		.balance { display: flex; justify-content: space-between; align-items: center; padding: 12px 14px; border-radius: 12px; background: #0c0c0e; color: #fff }
+		.balance b { font-size: 20px }
+		.tag { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: #2633ff }
+		.plan { display: flex; flex-direction: column; gap: 5px; justify-content: center } .plan b { padding: 10px 0 }
+		.ok { color: #1fbf75; font-weight: 600; display: none }
+		.ok.on { display: block }
+	</style>
+	<h1>Create your account</h1>
+	<div class="grid">
+		<label>Name <input name="name" autocomplete="off" placeholder="Ada Lovelace" /></label>
+		<label>Email <input name="email" type="email" autocomplete="off" placeholder="ada@example.com" /></label>
+		<label>Password <span class="tag">always hidden</span><input name="password" type="password" autocomplete="new-password" /></label>
+		<label>Card <span class="tag">always hidden</span><input name="card" autocomplete="cc-number" inputmode="numeric" placeholder="4242 4242 4242 4242" /></label>
+		<label>Referral code <span class="tag">data-va-unmask</span><input name="referral" data-va-unmask autocomplete="off" placeholder="FRIEND10" /></label>
+		<div class="plan"><span class="muted">Plan</span><b>Pro · 12 €/month</b></div>
+	</div>
+	<div class="balance" data-va-block><span>Balance <span class="tag" style="color:#a9b1ff">data-va-block</span></span><b>2 480,00 €</b></div>
+	<button class="primary" id="go">Create account</button>
+	<p class="ok" id="ok">Welcome aboard ✓</p>
+	<script is:inline>
+		document.getElementById("go").addEventListener("click", () => {
+			const ok = document.getElementById("ok");
+			ok.classList.add("on");
+			setTimeout(() => ok.classList.remove("on"), 1500);
+		});
+	</script>
+</DemoPage>
