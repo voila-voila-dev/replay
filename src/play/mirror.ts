@@ -94,6 +94,9 @@ export function mirror(doc: Document, hooks: MirrorHooks = {}): Mirror {
 	let pointer: [number, number] | null = null;
 	// What a copy of the tree would lose, noted as the tape does it, for a checkpoint to keep.
 	let drawn = new Set<Node>();
+	// The last picture of each canvas. A document without scripts, like the copy, renders a
+	// canvas's fallback content, never its bitmap: the picture shows as the canvas's background.
+	let shots = new WeakMap<Element, string>();
 	let scrolled = new Set<Node>();
 	let opened = new Set<Node>();
 	let adopting = new Set<Node>();
@@ -142,6 +145,15 @@ export function mirror(doc: Document, hooks: MirrorHooks = {}): Mirror {
 		}
 	}
 
+	function show(el: Element, shot: string) {
+		shots.set(el, shot);
+		const style = (el as HTMLElement).style;
+		if (!style) return;
+		style.setProperty("background-image", `url("${shot}")`);
+		style.setProperty("background-size", "100% 100%");
+		style.setProperty("background-repeat", "no-repeat");
+	}
+
 	function set(el: Element, name: string, value: string) {
 		if (/^on/i.test(name) || name.toLowerCase() === "http-equiv") return;
 		const tag = local(el);
@@ -167,6 +179,9 @@ export function mirror(doc: Document, hooks: MirrorHooks = {}): Mirror {
 				setAttrNS(el, null, name, value);
 			} catch {}
 		}
+		// The page's own style would wipe the canvas's picture: it goes back on top.
+		const shot = name === "style" ? shots.get(el) : undefined;
+		if (shot) show(el, shot);
 	}
 
 	function element(name: string): Element {
@@ -234,6 +249,7 @@ export function mirror(doc: Document, hooks: MirrorHooks = {}): Mirror {
 		nodes = [undefined, doc];
 		sheets = [];
 		drawn = new Set();
+		shots = new WeakMap();
 		scrolled = new Set();
 		opened = new Set();
 		adopting = new Set();
@@ -285,10 +301,16 @@ export function mirror(doc: Document, hooks: MirrorHooks = {}): Mirror {
 				}
 				case Op.B: {
 					const el = element(a(1)) as HTMLElement;
+					const w = +a(2) || 0;
+					const h = +a(3) || 0;
+					// A box of no size is one the page did not render (display: none): shown, it would
+					// still take a slot in a flex or grid layout, and a gap with it.
 					setAttr(
 						el,
 						"style",
-						`display:inline-block;width:${+a(2) || 0}px;height:${+a(3) || 0}px;background:repeating-linear-gradient(45deg,#0001 0 8px,#0002 8px 16px)`,
+						w || h
+							? `display:inline-block;width:${w}px;height:${h}px;background:repeating-linear-gradient(45deg,#0001 0 8px,#0002 8px 16px)`
+							: "display:none",
 					);
 					setAttr(el, "data-replay-blocked", "");
 					nodes[++seq] = el;
@@ -492,6 +514,7 @@ export function mirror(doc: Document, hooks: MirrorHooks = {}): Mirror {
 						c?.drawImage(image, 0, 0, el.width, el.height);
 					};
 					image.src = shot;
+					show(el, shot);
 					break;
 				}
 				case Op.SHOWN: {
@@ -594,6 +617,9 @@ export function mirror(doc: Document, hooks: MirrorHooks = {}): Mirror {
 				if (!el) continue;
 				el.getContext("2d")?.drawImage(pixel, 0, 0);
 				drawn.add(el);
+				// The copied style carries the picture; remembered, a later style keeps it.
+				const shot = /url\("?(data:image\/[^")]+)"?\)/.exec(el.style.backgroundImage)?.[1];
+				if (shot) shots.set(el, shot);
 			} catch {}
 		}
 		for (const [node, state] of cp.shown) {
