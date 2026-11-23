@@ -1,0 +1,61 @@
+---
+title: Getting started
+description: Record a page, send it to your server, play it back. Three calls.
+---
+
+replay is three small parts that you wire yourself: a **recorder** that runs on your pages, a **sender** that takes its chunks to your endpoint, and a **player** that rebuilds the page wherever you watch. No dependency, no service to sign up for: the tapes are yours.
+
+## Install
+
+```sh
+bun add @voila.dev/replay
+```
+
+The package has one entry per part, so a page only loads what it uses:
+
+| Entry | What | gzip |
+| --- | --- | --- |
+| `@voila.dev/replay/record` | The recorder | 6.2 KB |
+| `@voila.dev/replay/send` | Chunks to your endpoint | +1.6 KB |
+| `@voila.dev/replay/modules` | Shadow DOM, iframes, canvas, CSSOM | 0.2 to 0.5 KB each |
+| `@voila.dev/replay/play` | The player | 7.4 KB |
+| `@voila.dev/replay/format` | The tape: ops, `join`, `resolve` | |
+
+## Record and send
+
+```ts
+import { record } from "@voila.dev/replay/record";
+import { connect } from "@voila.dev/replay/send";
+import { cssom, shadow } from "@voila.dev/replay/modules";
+
+const pv = crypto.randomUUID(); // one id per page view
+const rec = record(window, { mask: "inputs", modules: [shadow(), cssom()] });
+
+if (rec) {
+  const link = connect({
+    endpoint: "/replay",
+    head: () => ({ url: location.href, pv }),
+    onSnap: () => link.send(rec.snap()),
+  });
+  link.send(rec.snap());
+  setInterval(() => link.send(rec.drain()), 5000);
+  addEventListener("pagehide", () => link.leave(rec.drain()));
+}
+```
+
+`record` returns `null` in a browser too old for it: the page goes on untouched. See [Recording](/docs/recording) for the options, and [Your endpoint](/docs/server) for what the server answers.
+
+## Play
+
+```ts
+import { createPlayer } from "@voila.dev/replay/play";
+
+const player = createPlayer({ root: document.getElementById("player")!, chunks });
+player.play();
+```
+
+`chunks` are what your endpoint kept for one page view, in order: `{ base, seq, tape }`. See [Playing](/docs/playing).
+
+## Try it first
+
+The [demos](/demos) run the library in your browser on a small checkout, and the [playground](/playground) records any Wikipedia article.

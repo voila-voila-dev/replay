@@ -1,0 +1,38 @@
+---
+title: Privacy
+description: Masking happens in the core, before any module. What leaves the page, and what never does.
+---
+
+## Three modes
+
+| `mask` | What the copy shows |
+| --- | --- |
+| `inputs` (default) | The page's own text. What is typed becomes `******`, six stars whatever its length: not even the length leaves |
+| `text` | No text at all, only the layout, the pointer and what the visitor does |
+| `none` | Everything, but what is always hidden |
+
+## Always hidden
+
+Passwords, card numbers (`autocomplete="cc-…"`), one-time codes and hidden fields, whatever the mode. `data-va-unmask` does not change that.
+
+## Per element
+
+```html
+<p data-va-mask>Text and attributes here are stars, whatever the mode.</p>
+<div data-va-block>Never read: the copy gets an empty box of the same size.</div>
+<input name="coupon" data-va-unmask />
+```
+
+- **Masked zone**: text and attributes become stars, but for the attributes that say nothing about the visitor (`class`, `id`, `style`, `src`, `href`, `role`, sizes…), which stay in clear so the layout survives.
+- **Blocked**: the element and everything in it is never read. A blocked element the page does not render takes no room in the copy.
+- **Unmasked**: a field kept readable under the default mask, for values that are not personal (a coupon, a search on a public catalogue).
+
+`contenteditable` is replayed whole, its text as stars of the same length under the default mask.
+
+The attribute names can change: `maskAttr`, `blockAttr`, `unmaskAttr`.
+
+## The copy cannot act
+
+The player rebuilds the page through the DOM API, never through the HTML parser, in a sandboxed iframe without scripts. Event handlers, `javascript:` URLs, `<script>`, `<base>` and `target` are dropped. With the player's `sources` option, the copy only loads pictures and fonts from the origins you allow.
+
+Try every mode in the [privacy demo](/demos#privacy).

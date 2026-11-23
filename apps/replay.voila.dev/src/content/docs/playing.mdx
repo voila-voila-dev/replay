@@ -1,0 +1,59 @@
+---
+title: Playing
+description: createPlayer(options) rebuilds the page in a sandboxed iframe, with a clock, seeking and the visitor's pointer.
+---
+
+```ts
+import { createPlayer } from "@voila.dev/replay/play";
+
+const player = createPlayer({ root, chunks, skipIdle: true, sources: ["https://cdn.example.com"] });
+player.on("end", () => console.log("done"));
+player.play();
+```
+
+## Options
+
+| Option | Default | What |
+| --- | --- | --- |
+| `root` | | The element the player goes in |
+| `chunks` | | `{ base, seq?, tape }` in order. A missing `seq` is a hole |
+| `speed` | `1` | Playback speed |
+| `skipIdle` | `true` | Stretches over 5 s without anything happening play as one second |
+| `every` | `10_000` | Ms of recording between two checkpoints |
+| `asset(url)` | | Where to load a picture or a font from, given its address on the page: your own kept copy |
+| `sources` | | The only origins the copy may load pictures, fonts and media from, besides `data:` and `blob:` |
+
+## The player
+
+| Member | What |
+| --- | --- |
+| `play()`, `pause()` | At the end, `play()` starts again from the beginning |
+| `seek(ms)` | From the nearest checkpoint or snapshot before `ms` |
+| `setSpeed(n)`, `setSkipIdle(on)` | |
+| `append(chunks)` | Chunks that came after: follow a session live |
+| `duration`, `time`, `playing`, `size` | Ms of recording, ms from its start, the recorded viewport |
+| `gaps` | The holes: `{ at, ms }` |
+| `prints` | Each fingerprint check: `{ at, ok, detail? }` |
+| `on(event, handler)` | `time`, `size`, `play`, `pause`, `end`, `print`. Returns a function that removes the handler |
+| `iframe`, `document` | The copy |
+| `destroy()` | |
+
+## Seeking
+
+Every `every` ms of tape, the player keeps a checkpoint: a copy of the rebuilt page, its node numbers, and what a copy does not carry (constructed sheets and who adopts them, canvas pixels, modal dialogs and popovers, scroll positions, frames' documents). A seek starts from the nearest one. Past 64 checkpoints, one in two goes and they come twice as far apart.
+
+## Holes
+
+Each chunk carries its rank and the number its first node takes. When one is missing or does not read, the player marks a hole in `gaps` and plays nothing until the next snapshot, rather than apply changes to nodes it never received.
+
+## Following live
+
+```ts
+const player = createPlayer({ root, chunks: [first] });
+socket.onmessage = (e) => {
+  player.append([JSON.parse(e.data)]);
+  if (!player.playing) player.play();
+};
+```
+
+The [demos](/demos) do exactly this, with the recorder in the same page.

@@ -1,0 +1,47 @@
+---
+title: Sending
+description: connect(options) takes the recorder's chunks to your endpoint, without sending twice what the server already holds.
+---
+
+```ts
+import { connect } from "@voila.dev/replay/send";
+
+const link = connect({
+  endpoint: "/replay",
+  head: () => ({ url: location.href, pv }),
+  onSnap: () => link.send(rec.snap()),
+});
+```
+
+## Options
+
+| Option | What |
+| --- | --- |
+| `endpoint` | Where chunks are posted |
+| `head()` | The page view this goes with: `{ url, pv, property?, visitor? }`. Return `undefined` while there is no id yet (a prerendered page): chunks wait |
+| `onSnap()` | The server saw a hole: take a new snapshot and send it |
+| `onFail()` | Sending failed for good: nothing more goes for this page view |
+| `post(endpoint, body)` | Posts a body and reads the answer; `fetch` by default |
+| `beacon(endpoint, body)` | Sends a body that must outlive the page; `navigator.sendBeacon` by default |
+| `wait(ms)` | Waits between two tries; `setTimeout` by default |
+
+## The link
+
+| Member | What |
+| --- | --- |
+| `send(piece)` | Queues a snapshot or a drain. Chunks go one at a time, in order, numbered from 0 per page view |
+| `leave(piece?)` | The page is going away: one beacon with what is left, and what was queued and not started |
+| `idle()` | Settles once everything queued has been sent, or given up |
+| `failed` | Whether sending gave up |
+
+## What goes on the wire
+
+- **Gzip** where the browser has `CompressionStream`; plain JSON otherwise. The body is `text/plain`: no preflight.
+- **Long strings by hash.** A string over 256 characters (a stylesheet, a picture) goes as `[hash]`, a 16-byte SHA-256 in base64url. The server asks for the ones it does not have.
+- **Snapshots by piece.** A snapshot is cut by its content into pieces of about 4 KB, each sent as `[hash, 1]`: pieces that are the same from one visitor to the next are sent once.
+- **Retries.** A failed post is tried again after 1, 4 and 16 seconds, then the link gives up and calls `onFail`.
+- **The beacon** has no time to hash: the tape goes as it is, up to 60 KB, then what the server still lacks while it fits.
+
+Pages served over plain `http` have no `crypto.subtle`: everything is sent in clear JSON, without hashes.
+
+What the server answers is in [Your endpoint](/docs/server).

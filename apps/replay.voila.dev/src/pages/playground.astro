@@ -1,4 +1,5 @@
 ---
+import PageHero from "@voila.dev/site/components/PageHero.astro";
 import Cta from "../components/Cta.astro";
 import Footer from "../components/Footer.astro";
 import Live from "../components/Live.astro";
@@ -15,12 +16,14 @@ const first = playground.presets[0];
 >
 	<div class="in">
 		<Top />
-		<header class="phero solo"><h1>Playground</h1></header>
-		<div class="pintro">
-			<p>A real page, recorded in your browser.</p>
-			<div><span class="k">Page</span>Any Wikipedia article, in any language</div>
-			<div><span class="k">Why Wikipedia</span>A page of another site cannot be recorded from here: served by replay.voila.dev, it can</div>
-		</div>
+		<PageHero
+			title="Playground"
+			lead="A real page, recorded in your browser."
+			facts={[
+				{ label: "Page", value: "Any Wikipedia article, in any language" },
+				{ label: "Why Wikipedia", value: "A page of another site cannot be recorded from here: served by replay.voila.dev, it can" },
+			]}
+		/>
 	</div>
 
 	<main class="in">

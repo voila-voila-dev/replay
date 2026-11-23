@@ -1,0 +1,59 @@
+---
+title: The tape
+description: One flat array of opcodes and operands. What each op means, and how a newer tape stays readable by an older player.
+---
+
+A tape is a flat array: an opcode, then its operands, then the next opcode. Nodes are numbered implicitly, in the order they are made, on both sides: the recorder never writes a node's number when it makes one. The current format is version `2`.
+
+```ts
+[96, 2, "https://shop.example/", 1795000000000, 1280, 720, 0, // META
+ 3, "html", "", "",                                           // D: doctype
+ 1, "html", 1, "lang", "en",                                  // E: <html lang="en">
+ /* … */ 0]                                                   // X: close
+```
+
+## Ops
+
+| Code | Op | Operands |
+| --- | --- | --- |
+| 0 | `X` | Closes the node opened last |
+| 1 | `E` | name, n, then n (name, value) pairs. Makes an element and opens it |
+| 2 | `T` | data. Makes a text node |
+| 3 | `D` | name, publicId, systemId. Makes a doctype |
+| 4 | `B` | name, width, height. An element recorded as an empty box |
+| 5 | `TPL` | Opens the content of the template opened last |
+| 6 | `SHADOW` | mode. Opens the shadow root of the element opened last |
+| 7 | `FRAME` | Opens the document of the iframe opened last |
+| 8 | `R` | id. A node already numbered, moved here |
+| 16 | `INS` | parent, anchor (0: at the end). Opens a node to insert before the anchor |
+| 17 | `DEL` | id |
+| 18 | `ATTR` | id, name, value or null |
+| 19 | `TEXT` | id, data |
+| 20 | `VAL` | id, value: a string, or 0/1 for `checked` and `selected` |
+| 21 | `OPEN` | id, state: 0 closed, 1 open, 2 modal |
+| 32 | `SHEET` | node or 0 (a constructed sheet), sheet number, rules as text |
+| 33 | `RULE` | sheet number, index path ("3", "3.1"), rule text or null |
+| 34 | `ADOPT` | node, n, then n sheet numbers |
+| 48 | `TICK` | ms since the previous tick |
+| 49 | `MOVE` | x, y |
+| 50 | `TAP` | kind (1 down, 2 up, 3 click), id, x, y |
+| 51 | `SCROLL` | id (1: the page), x, y |
+| 52 | `SIZE` | width, height |
+| 53 | `FOCUS` | id, or 0 |
+| 54 | `HIDE` | 0 visible, 1 hidden |
+| 96 | `META` | version, url, time, width, height, mode (0 standards, 1 quirks) |
+| 97 | `PRINT` | nodes, fingerprint: what the player checks its copy against |
+| 98 | `END` | reason: 1 consent, 2 budget, 3 network |
+| 128 | `SHOT` | framed: id, a canvas as a data URL |
+| 129 | `ERR` | framed: the name of a module cut off after it threw |
+| 130 | `SHOWN` | framed: id, the picture an image shows, from its `srcset` or `<picture>` |
+
+## Framed ops
+
+Codes from 128 are framed: the opcode, then the number of operands, then the operands. A player that does not know one skips it. This is how a newer recorder adds an op without breaking an older player.
+
+## Chunks
+
+A chunk is `{ base, seq, tape }`: `base` is the number its first node takes, `seq` its rank in the page view. `join(chunks)` from `@voila.dev/replay/format` joins them into one tape, turning a missing or unreadable chunk into a tick of the time it spanned, and playing nothing until the next snapshot.
+
+`validate(tape, base?)` says whether a tape reads, and where it stops reading.

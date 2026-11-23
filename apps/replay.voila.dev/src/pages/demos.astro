@@ -1,5 +1,7 @@
 ---
-import CodeBlock from "../components/CodeBlock.astro";
+import CodeBlock from "@voila.dev/site/components/CodeBlock.astro";
+import PageHero from "@voila.dev/site/components/PageHero.astro";
+import Toc from "@voila.dev/site/components/Toc.astro";
 import Cta from "../components/Cta.astro";
 import Footer from "../components/Footer.astro";
 import Live from "../components/Live.astro";
@@ -13,23 +15,25 @@ const index = [
 	["privacy", "Privacy", "Masks, blocks, unmasks"],
 	["player", "Player", "Pause, speed, seek"],
 	["holes", "Holes", "A chunk lost on purpose"],
-	["modules", "Modules", "Shadow DOM, CSSOM"],
+	["modules", "Modules", "Shadow DOM, canvas, CSSOM"],
 ];
 ---
 
 <Base
 	title="replay demos · record and play back, live"
-	description="Live demos of @voila.dev/replay: a checkout recorded and played back next to it. The tape op by op, masking and blocking, the player's controls, lost chunks, shadow DOM. The real library, in your browser."
+	description="Live demos of @voila.dev/replay: a checkout recorded and played back next to it. The tape op by op, masking and blocking, the player's controls, lost chunks, shadow DOM and canvas. The real library, in your browser."
 >
 	<div class="in">
 		<Top />
-		<header class="phero solo"><h1>Demos</h1></header>
-		<div class="pintro">
-			<p>The real library, running in your browser.</p>
-			<div><span class="k">Recorded</span>A small checkout, in an iframe</div>
-			<div><span class="k">Version</span>@voila.dev/replay {version}, built from this repo</div>
-		</div>
-		<nav class="toc">{index.map(([id, name, text], i) => <a href={`#${id}`}><span class="n">{String(i + 1).padStart(2, "0")}</span><b>{name}</b><em>{text}</em></a>)}</nav>
+		<PageHero
+			title="Demos"
+			lead="The real library, running in your browser."
+			facts={[
+				{ label: "Recorded", value: "A small checkout, in an iframe" },
+				{ label: "Version", value: `@voila.dev/replay ${version}, built from this repo` },
+			]}
+		/>
+		<Toc items={index.map(([id, name, text]) => ({ id, name, text }))} />
 	</div>
 
 	<main class="in">
@@ -84,12 +88,12 @@ const index = [
 
 		<section id="modules">
 			<div class="head"><h2>Modules</h2><span>Only what your pages use</span></div>
-			<p class="claim lead">A badge in a shadow root reaches the copy. Load the module, nothing else.</p>
-			<Live extras={["shadow"]} modules={["cssom", "shadow"]} />
+			<p class="claim lead">A badge in a shadow root, a signature on a canvas: both reach the copy.</p>
+			<Live extras={["shadow", "canvas"]} modules={["cssom", "shadow", "canvas"]} />
 			<div class="what-grid how-grid">
 				<div><span class="k">shadow()</span>Shadow roots, attached before or after the recording starts. 0.2 KB.</div>
 				<div><span class="k">cssom()</span>Rules added by script, <code>replaceSync</code> and constructed sheets. 0.5 KB.</div>
-				<div><span class="k">iframes()</span>Same-origin frames, recorded as part of the page. 0.2 KB.</div>
+				<div><span class="k">canvas()</span>The pixels of each 2D canvas, as pictures, at most every 250 ms here. 0.2 KB.</div>
 			</div>
 		</section>
 
