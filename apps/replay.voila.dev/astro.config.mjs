@@ -9,7 +9,7 @@ export default defineConfig({
 	site: "https://replay.voila.dev",
 	trailingSlash: "never",
 	build: { format: "directory" },
-	integrations: [sitemap()],
+	integrations: [sitemap({ filter: (page) => !page.includes("/demo/") })],
 	vite: {
 		resolve: {
 			alias: [{ find: /^@voila\.dev\/replay\/(\w+)$/, replacement: `${library}/$1/index.ts` }],

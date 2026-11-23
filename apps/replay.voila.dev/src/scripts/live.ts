@@ -1,54 +1,61 @@
-// Live demos: a page in an iframe is recorded by the real @voila.dev/replay, and played back
-// next to it, in a sandboxed copy, a fraction of a second behind. Every demo on the site is one
-// `[data-live]` block; its data attributes pick the mask, the autopilot and the extras.
+// Live demos: the demo checkout, in an iframe, is recorded by the library of this repo and played
+// back next to it, in a sandboxed copy, a fraction of a second behind. Every demo on the site is
+// one `[data-live]` block (see Live.astro); its data attributes pick the mask, the modules, the
+// extras of the page and the controls shown.
 import { type Chunk, length, Op, type Tape } from "@voila.dev/replay/format";
-import { cssom } from "@voila.dev/replay/modules";
+import { canvas, cssom, shadow } from "@voila.dev/replay/modules";
 import { createPlayer, type Player } from "@voila.dev/replay/play";
-import { type Mask, type Recorder, record } from "@voila.dev/replay/record";
+import { type Mask, type Module, type Recorder, record } from "@voila.dev/replay/record";
 
+/** The demo checkout is laid out at this width; the demos scale it, and its copy, to fit. */
+const PAGE_WIDTH = 560;
 const DRAIN_MS = 250;
 const LAG_MAX_MS = 600;
 const IDLE_RESUME_MS = 6000;
+const SNAP_AFTER_HOLE_MS = 2000;
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
+const MODULES: Record<string, () => Module> = { cssom, shadow, canvas: () => canvas(250, 0.6) };
+
 type Step =
-	| { kind: "move"; to: string }
 	| { kind: "click"; on: string }
 	| { kind: "type"; into: string; text: string }
 	| { kind: "clear"; into: string }
+	| { kind: "sign" }
 	| { kind: "wait"; ms: number };
 
-/** What the autopilot does in the demo shop, in a loop, until someone takes over. */
-const SCRIPT: Step[] = [
-	{ kind: "wait", ms: 600 },
-	{ kind: "click", on: '[data-q="1"]' },
-	{ kind: "wait", ms: 300 },
-	{ kind: "click", on: '[data-q="1"]' },
-	{ kind: "type", into: 'input[name="email"]', text: "ada@example.com" },
-	{ kind: "type", into: 'input[name="card"]', text: "4242 4242 4242 4242" },
-	{ kind: "type", into: 'input[name="name"]', text: "Ada Lovelace" },
-	{ kind: "click", on: '[data-tab="reviews"]' },
-	{ kind: "wait", ms: 900 },
-	{ kind: "click", on: '[data-tab="cart"]' },
-	{ kind: "click", on: ".pay" },
-	{ kind: "wait", ms: 1800 },
-	{ kind: "click", on: '[data-q="-1"]' },
-	{ kind: "click", on: '[data-q="-1"]' },
-	{ kind: "clear", into: 'input[name="email"]' },
-	{ kind: "clear", into: 'input[name="card"]' },
-	{ kind: "clear", into: 'input[name="name"]' },
-	{ kind: "wait", ms: 800 },
-];
+/** What the autopilot does in the demo checkout, in a loop, until someone takes over. */
+function script(extras: ReadonlyArray<string>): Step[] {
+	return [
+		{ kind: "wait", ms: 600 },
+		{ kind: "click", on: '[data-q="1"]' },
+		{ kind: "wait", ms: 250 },
+		{ kind: "click", on: '[data-q="1"]' },
+		{ kind: "type", into: 'input[name="email"]', text: "ada@example.com" },
+		...(extras.includes("unmask") ? [{ kind: "type", into: 'input[name="coupon"]', text: "SPRING" } as Step] : []),
+		{ kind: "type", into: 'input[name="card"]', text: "4242 4242 4242 4242" },
+		...(extras.includes("canvas") ? [{ kind: "sign" } as Step] : []),
+		{ kind: "click", on: ".pay" },
+		{ kind: "wait", ms: 1800 },
+		{ kind: "click", on: '[data-q="-1"]' },
+		{ kind: "click", on: '[data-q="-1"]' },
+		{ kind: "clear", into: 'input[name="email"]' },
+		{ kind: "clear", into: 'input[name="coupon"]' },
+		{ kind: "clear", into: 'input[name="card"]' },
+		{ kind: "wait", ms: 900 },
+	];
+}
 
 /** A fake pointer over the source page: it sends real pointer events, which the recorder writes. */
 class Pilot {
-	x = 40;
-	y = 40;
+	x = 60;
+	y = 60;
 	stopped = false;
 	private takenAt = 0;
 	constructor(
 		private readonly frame: HTMLIFrameElement,
 		private readonly dot: HTMLElement,
+		private readonly steps: Step[],
 	) {
 		const doc = frame.contentDocument as Document;
 		// A real hand on the page: the pilot steps aside, and comes back once the page is idle.
@@ -80,30 +87,31 @@ class Pilot {
 		this.dot.style.transform = `translate(${this.x}px,${this.y}px)`;
 	}
 
-	async move(sel: string) {
-		const el = this.doc.querySelector(sel);
-		if (!el) return;
-		const r = el.getBoundingClientRect();
-		const tx = r.left + r.width / 2;
-		const ty = r.top + r.height / 2;
+	private async glide(tx: number, ty: number, steps = 14, ms = 28, send = "pointermove") {
 		const fx = this.x;
 		const fy = this.y;
-		const steps = 14;
 		for (let i = 1; i <= steps && !this.taken; i++) {
 			const k = i / steps;
 			const e = k < 0.5 ? 2 * k * k : 1 - (-2 * k + 2) ** 2 / 2;
 			this.x = fx + (tx - fx) * e;
 			this.y = fy + (ty - fy) * e;
 			this.show();
-			this.send("pointermove", this.doc.elementFromPoint(this.x, this.y) || this.doc.body);
-			await sleep(28);
+			this.send(send, this.doc.elementFromPoint(this.x, this.y) || this.doc.body);
+			await sleep(ms);
 		}
 	}
 
+	async move(sel: string) {
+		const el = this.doc.querySelector(sel);
+		if (!el || !(el as HTMLElement).offsetParent) return false;
+		const r = el.getBoundingClientRect();
+		await this.glide(r.left + r.width / 2, r.top + r.height / 2);
+		return true;
+	}
+
 	async click(sel: string) {
-		await this.move(sel);
-		const el = this.doc.querySelector(sel) as HTMLElement | null;
-		if (!el || this.taken) return;
+		if (!(await this.move(sel)) || this.taken) return;
+		const el = this.doc.querySelector(sel) as HTMLElement;
 		this.send("pointerdown", el);
 		await sleep(70);
 		this.send("pointerup", el);
@@ -114,7 +122,7 @@ class Pilot {
 	async type(sel: string, text: string) {
 		await this.click(sel);
 		const el = this.doc.querySelector(sel) as HTMLInputElement | null;
-		if (!el || this.taken) return;
+		if (!el || !el.offsetParent || this.taken) return;
 		el.focus();
 		for (const ch of text) {
 			if (this.taken) return;
@@ -132,18 +140,37 @@ class Pilot {
 		el.blur();
 	}
 
+	/** A loop of a signature across the canvas, drawn with real pointer events. */
+	async sign() {
+		const pad = this.doc.querySelector("canvas");
+		if (!pad || !pad.offsetParent) return;
+		(this.frame.contentWindow as Window & { clearSignature?: () => void }).clearSignature?.();
+		const r = pad.getBoundingClientRect();
+		await this.glide(r.left + 24, r.top + r.height * 0.6);
+		this.send("pointerdown", pad);
+		const points = 46;
+		for (let i = 1; i <= points && !this.taken; i++) {
+			const t = i / points;
+			const x = r.left + 24 + t * (r.width * 0.55);
+			const y = r.top + r.height * (0.55 - 0.28 * Math.sin(t * Math.PI * 5) * (1 - t * 0.4));
+			await this.glide(x, y, 1, 18);
+		}
+		this.send("pointerup", pad);
+		await sleep(200);
+	}
+
 	async run() {
 		while (!this.stopped) {
-			for (const s of SCRIPT) {
+			for (const s of this.steps) {
 				while (this.taken && !this.stopped) {
 					this.show();
 					await sleep(400);
 				}
 				if (this.stopped) return;
-				if (s.kind === "move") await this.move(s.to);
-				else if (s.kind === "click") await this.click(s.on);
+				if (s.kind === "click") await this.click(s.on);
 				else if (s.kind === "type") await this.type(s.into, s.text);
 				else if (s.kind === "clear") this.clear(s.into);
+				else if (s.kind === "sign") await this.sign();
 				else await sleep(s.ms);
 			}
 		}
@@ -180,18 +207,52 @@ async function gzipped(text: string): Promise<number | null> {
 }
 
 const kb = (b: number) => (b < 1000 ? `${b} B` : `${(b / 1000).toFixed(1)} KB`);
+const clock = (ms: number) => {
+	const s = Math.max(0, Math.floor(ms / 1000));
+	return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+};
+
+/** Scales a box of the page's natural size into its pane, centred: nothing ever spills. */
+function place(box: HTMLElement, pane: HTMLElement, width: number, height: number) {
+	const k = Math.min(pane.clientWidth / width, pane.clientHeight / height);
+	const x = (pane.clientWidth - width * k) / 2;
+	const y = (pane.clientHeight - height * k) / 2;
+	box.style.transformOrigin = "0 0";
+	box.style.transform = `translate(${x}px,${y}px) scale(${k})`;
+}
 
 function mount(box: HTMLElement) {
+	const pane = box.querySelector<HTMLElement>(".src .frame");
+	const scaler = box.querySelector<HTMLElement>(".src .scaler");
 	const frame = box.querySelector<HTMLIFrameElement>(".src iframe");
 	const stage = box.querySelector<HTMLElement>(".dst .stage");
 	const dot = box.querySelector<HTMLElement>(".src .ghost");
-	if (!frame || !stage || !dot) return;
+	if (!pane || !scaler || !frame || !stage || !dot) return;
+	const height = Number(box.dataset.height || 400);
+	const extras = (box.dataset.extras || "").split(",").filter(Boolean);
+	const modules = (box.dataset.modules || "cssom").split(",").filter((m) => m in MODULES);
 	const maskSelect = box.querySelector<HTMLSelectElement>("[data-mask-select]");
 	const dropButton = box.querySelector<HTMLButtonElement>("[data-drop]");
 	const seek = box.querySelector<HTMLInputElement>("[data-seek]");
+	const gapsView = box.querySelector<HTMLElement>("[data-gaps]");
+	const timeView = box.querySelector<HTMLElement>("[data-time]");
+	const playButton = box.querySelector<HTMLButtonElement>("[data-play]");
+	const speedSelect = box.querySelector<HTMLSelectElement>("[data-speed]");
+	const idleBox = box.querySelector<HTMLInputElement>("[data-skip-idle]");
 	const tapeView = box.querySelector<HTMLElement>("[data-tape]");
 	const stat = (name: string) => box.querySelector<HTMLElement>(`[data-stat="${name}"]`);
 	const autopilot = box.dataset.autopilot !== "off";
+
+	frame.style.width = `${PAGE_WIDTH}px`;
+	frame.style.height = `${height}px`;
+	const layout = () => {
+		place(scaler, pane, PAGE_WIDTH, height);
+		const inner = stage.firstElementChild as HTMLElement | null;
+		if (inner) place(inner, stage, PAGE_WIDTH, height);
+	};
+	new ResizeObserver(layout).observe(pane);
+	new ResizeObserver(layout).observe(stage);
+	layout();
 
 	let rec: Recorder | null = null;
 	let player: Player | null = null;
@@ -206,17 +267,8 @@ function mount(box: HTMLElement) {
 	const all: Chunk[] = [];
 	const log: string[] = [];
 
-	const fit = () => {
-		if (!player) return;
-		const { width } = player.size;
-		const k = Math.min(1, stage.clientWidth / width);
-		const inner = stage.firstElementChild as HTMLElement | null;
-		if (inner) inner.style.transform = `scale(${k})`;
-	};
-
 	const push = (chunk: Chunk, kept: boolean) => {
-		const text = JSON.stringify(chunk.tape);
-		raw += text.length;
+		raw += JSON.stringify(chunk.tape).length;
 		const these = lines(chunk.tape as Tape);
 		ops += these.length;
 		if (tapeView) {
@@ -225,8 +277,7 @@ function mount(box: HTMLElement) {
 			tapeView.textContent = log.join("\n");
 			tapeView.scrollTop = tapeView.scrollHeight;
 		}
-		if (!kept) return;
-		all.push(chunk);
+		if (kept) all.push(chunk);
 	};
 
 	const stats = async () => {
@@ -237,12 +288,31 @@ function mount(box: HTMLElement) {
 		if (g != null) stat("gzip")?.replaceChildren(kb(g));
 	};
 
+	/** Marks the holes on the seek bar, where the player says they are. */
+	const drawGaps = () => {
+		if (!gapsView || !player || !player.duration) return;
+		gapsView.replaceChildren(
+			...player.gaps.map((g) => {
+				const mark = document.createElement("i");
+				mark.style.left = `${(g.at / player!.duration) * 100}%`;
+				mark.style.width = `${Math.max(0.6, (g.ms / player!.duration) * 100)}%`;
+				return mark;
+			}),
+		);
+	};
+
 	// The player pauses at the end of what it has; waiting for the next chunk would add up.
 	// Past LAG_MAX behind, it jumps to DRAIN_MS behind the live page.
 	const follow = () => {
 		if (!player || !following) return;
 		if (player.duration - player.time > LAG_MAX_MS) player.seek(player.duration - DRAIN_MS);
 		if (!player.playing) player.play();
+	};
+
+	const setFollowing = (on: boolean) => {
+		following = on;
+		box.classList.toggle("scrubbing", !on);
+		if (playButton) playButton.textContent = player?.playing || on ? "Pause" : "Play";
 	};
 
 	const start = () => {
@@ -253,8 +323,8 @@ function mount(box: HTMLElement) {
 		all.length = 0;
 		log.length = 0;
 		raw = ops = holes = seq = 0;
-		const mask = ((maskSelect?.value || box.dataset.mask || "inputs") as Mask);
-		rec = record(win, { mask, modules: [cssom()] });
+		const mask = (maskSelect?.value || box.dataset.mask || "inputs") as Mask;
+		rec = record(win, { mask, modules: modules.map((m) => MODULES[m]()) });
 		if (!rec) {
 			box.classList.add("unsupported");
 			return;
@@ -262,22 +332,30 @@ function mount(box: HTMLElement) {
 		const snap = rec.snap();
 		const first: Chunk = { base: snap.base, seq: seq++, tape: snap.tape };
 		push(first, true);
-		player = createPlayer({ root: stage, chunks: [first], skipIdle: false, sources: [location.origin] });
-		player.on("size", fit);
+		player = createPlayer({
+			root: stage,
+			chunks: [first],
+			skipIdle: idleBox?.checked ?? false,
+			speed: Number(speedSelect?.value || 1),
+			sources: [location.origin],
+		});
+		player.on("size", layout);
 		player.on("time", (t) => {
-			if (seek && player) {
+			if (!player) return;
+			if (seek) {
 				seek.max = String(Math.round(player.duration));
 				seek.value = String(Math.round(t));
 			}
+			timeView?.replaceChildren(`${clock(t)} / ${clock(player.duration)}`);
 		});
-		fit();
+		layout();
 		timer = window.setInterval(() => {
 			if (!rec || !player) return;
 			const d = rec.drain();
 			if (!d.tape.length) return;
 			const chunk: Chunk = { base: d.base, seq: seq++, tape: d.tape };
-			// The demo of holes: this chunk never reaches the server. The player marks the hole,
-			// and waits for the next snapshot rather than play a page that is no longer the one recorded.
+			// The demo of holes: this chunk never reaches the player. It marks the hole, and waits
+			// for the next snapshot rather than play a page that is no longer the one recorded.
 			if (dropNext) {
 				dropNext = false;
 				holes++;
@@ -290,13 +368,15 @@ function mount(box: HTMLElement) {
 					push(again, true);
 					player.append([again]);
 					box.classList.remove("holed");
+					drawGaps();
 					follow();
-				}, 2000);
+				}, SNAP_AFTER_HOLE_MS);
 				stats();
 				return;
 			}
 			push(chunk, true);
 			player.append([chunk]);
+			drawGaps();
 			follow();
 			stats();
 		}, DRAIN_MS);
@@ -306,34 +386,42 @@ function mount(box: HTMLElement) {
 	const boot = () => {
 		start();
 		if (autopilot && !pilot) {
-			pilot = new Pilot(frame, dot);
+			pilot = new Pilot(frame, dot, script(extras));
 			pilot.run();
 		}
 	};
 
-	maskSelect?.addEventListener("change", () => {
-		frame.contentWindow?.location.reload();
-	});
+	maskSelect?.addEventListener("change", () => frame.contentWindow?.location.reload());
 	dropButton?.addEventListener("click", () => {
 		dropNext = true;
 	});
-	if (seek) {
-		seek.addEventListener("input", () => {
-			following = false;
-			player?.pause();
-			player?.seek(Number(seek.value));
-			box.classList.add("scrubbing");
-		});
-		box.querySelector("[data-live-follow]")?.addEventListener("click", () => {
-			following = true;
-			box.classList.remove("scrubbing");
-			if (player) {
-				player.seek(player.duration);
-				player.play();
-			}
-		});
-	}
-	new ResizeObserver(fit).observe(stage);
+	seek?.addEventListener("input", () => {
+		setFollowing(false);
+		player?.pause();
+		player?.seek(Number(seek.value));
+		if (playButton) playButton.textContent = "Play";
+	});
+	playButton?.addEventListener("click", () => {
+		if (!player) return;
+		if (player.playing) {
+			player.pause();
+			setFollowing(false);
+			playButton.textContent = "Play";
+		} else {
+			player.play();
+			playButton.textContent = "Pause";
+		}
+	});
+	speedSelect?.addEventListener("change", () => player?.setSpeed(Number(speedSelect.value)));
+	idleBox?.addEventListener("change", () => player?.setSkipIdle(idleBox.checked));
+	box.querySelector("[data-live-follow]")?.addEventListener("click", () => {
+		if (!player) return;
+		setFollowing(true);
+		player.setSpeed(1);
+		if (speedSelect) speedSelect.value = "1";
+		player.seek(player.duration);
+		player.play();
+	});
 
 	// A new mask reloads the page: a new page view, a new recorder, a new copy.
 	frame.addEventListener("load", () => {
@@ -350,10 +438,11 @@ const io = new IntersectionObserver(
 		for (const e of entries)
 			if (e.isIntersecting) {
 				io.unobserve(e.target);
-				const frame = e.target.querySelector<HTMLIFrameElement>(".src iframe");
+				const box = e.target as HTMLElement;
+				const frame = box.querySelector<HTMLIFrameElement>(".src iframe");
 				if (!frame) continue;
-				frame.addEventListener("load", () => mount(e.target as HTMLElement), { once: true });
-				frame.src = frame.dataset.src || "/demo/shop.html";
+				frame.addEventListener("load", () => mount(box), { once: true });
+				frame.src = frame.dataset.src || "/demo/shop";
 			}
 	},
 	{ rootMargin: "200px" },

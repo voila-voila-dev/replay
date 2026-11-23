@@ -1,30 +1,41 @@
 ---
+import CodeBlock from "../components/CodeBlock.astro";
 import Cta from "../components/Cta.astro";
 import Footer from "../components/Footer.astro";
 import Live from "../components/Live.astro";
 import Top from "../components/Top.astro";
 import { repo, version } from "../data/site";
+import { demoSnippet } from "../data/snippets";
 import Base from "../layouts/Base.astro";
+
+const index = [
+	["live", "Live", "The tape, op by op"],
+	["privacy", "Privacy", "Masks, blocks, unmasks"],
+	["player", "Player", "Pause, speed, seek"],
+	["holes", "Holes", "A chunk lost on purpose"],
+	["modules", "Modules", "Shadow DOM, CSSOM"],
+];
 ---
 
 <Base
 	title="replay demos · record and play back, live"
-	description="Live demos of @voila.dev/replay: a page recorded and played back next to it, the tape op by op, masking, lost chunks and seeking. The real library, in your browser."
+	description="Live demos of @voila.dev/replay: a checkout recorded and played back next to it. The tape op by op, masking and blocking, the player's controls, lost chunks, shadow DOM. The real library, in your browser."
 >
 	<div class="in">
 		<Top />
 		<header class="phero solo"><h1>Demos</h1></header>
 		<div class="pintro">
 			<p>The real library, running in your browser.</p>
-			<div><span class="k">Recorded</span>A small checkout page, in an iframe</div>
+			<div><span class="k">Recorded</span>A small checkout, in an iframe</div>
 			<div><span class="k">Version</span>@voila.dev/replay {version}, built from this repo</div>
 		</div>
+		<nav class="toc">{index.map(([id, name, text], i) => <a href={`#${id}`}><span class="n">{String(i + 1).padStart(2, "0")}</span><b>{name}</b><em>{text}</em></a>)}</nav>
 	</div>
 
 	<main class="in">
 		<section id="live">
 			<div class="head"><h2>Live</h2><span>The tape, op by op</span></div>
-			<p class="claim lead">Click, type, switch tabs. Every change lands on a flat tape, and the copy is rebuilt from it.</p>
+			<p class="claim lead">Click, type, pay. Every change lands on a flat tape, and the copy is rebuilt from it.</p>
 			<Live tape />
 			<p class="note">
 				A snapshot first, then a drain every 250 ms. Ops are an opcode and its operands: <code>E</code> makes an element, <code>TEXT</code> changes a
@@ -33,56 +44,59 @@ import Base from "../layouts/Base.astro";
 			</p>
 		</section>
 
-		<section id="mask">
-			<div class="head"><h2>Masking</h2><span>In the core, before any module</span></div>
+		<section id="privacy">
+			<div class="head"><h2>Privacy</h2><span>In the core, before any module</span></div>
 			<p class="claim lead">Type in the card field. What you type never leaves the page.</p>
-			<Live maskPicker />
+			<Live maskPicker extras={["block", "unmask"]} />
 			<div class="what-grid how-grid">
-				<div><span class="k">inputs (default)</span>Typed values become six stars, whatever their length: not even the length leaves. The page's own text stays readable.</div>
-				<div><span class="k">text</span>All text too. Only the layout and the pointer are left.</div>
+				<div><span class="k">inputs (default)</span>Typed values leave as six stars, whatever their length: not even the length leaves. The page's own text stays readable.</div>
+				<div><span class="k">text</span>All text too. Only the layout and the pointer are left. Switch the mask above.</div>
 				<div><span class="k">Always</span>Passwords, card numbers, one-time codes and hidden fields, whatever the mode. Here, the card field is <code>cc-number</code>.</div>
 			</div>
-			<p class="note">Per element: <code>data-va-mask</code>, <code>data-va-unmask</code>, <code>data-va-block</code> (an empty box of the same size).</p>
+			<div class="what-grid how-grid">
+				<div><span class="k">data-va-block</span>The saved card is never read: the copy gets an empty box of the same size.</div>
+				<div><span class="k">data-va-unmask</span>The coupon stays readable, even under the default mask: it says nothing about the visitor.</div>
+				<div><span class="k">data-va-mask</span>Masks the text of an element and everything in it, whatever the mode.</div>
+			</div>
+		</section>
+
+		<section id="player">
+			<div class="head"><h2>Player</h2><span>From the nearest checkpoint</span></div>
+			<p class="claim lead">Pause, rewind, play at 4×. Seeking back does not replay from the start.</p>
+			<Live controls stats={false} />
+			<p class="note">
+				Every 10 s of tape, the player keeps a checkpoint: a copy of the rebuilt page, its node numbers, and what a copy does not carry (constructed
+				sheets, canvas pixels, modal dialogs and popovers, scroll positions, frames). A seek starts from the nearest checkpoint or snapshot before it.
+				Past 64 checkpoints, one in two goes. With <em>skip idle</em>, a stretch of more than 5 s without anything happening plays as one.
+			</p>
 		</section>
 
 		<section id="holes">
 			<div class="head"><h2>Holes</h2><span>Said, not replayed</span></div>
 			<p class="claim lead">Networks lose things. A replay that does not say so shows a page that never existed.</p>
-			<Live drop />
+			<Live drop controls />
 			<p class="note">
-				Each chunk carries its rank and the number its first node takes. When one is missing, the player marks a hole and waits for the next
-				snapshot, rather than apply changes to nodes it never received. Here the recorder takes a new snapshot 2 s after the loss; in production
-				<code>connect</code> asks for one when the server says so.
+				Each chunk carries its rank and the number its first node takes. When one is missing, the player marks a hole (in red on the seek bar) and waits
+				for the next snapshot, rather than apply changes to nodes it never received. Here the recorder takes a new snapshot 2 s after the loss; in
+				production, <code>connect</code> calls <code>onSnap</code> when the server saw a hole.
 			</p>
 		</section>
 
-		<section id="seek">
-			<div class="head"><h2>Seek</h2><span>From the nearest checkpoint</span></div>
-			<p class="claim lead">Seeking back does not replay from the start.</p>
-			<Live seek />
-			<p class="note">
-				Every 10 s of tape, the player keeps a checkpoint: a copy of the rebuilt page, its node numbers, and what a copy does not carry (constructed
-				sheets, canvas pixels, modal dialogs and popovers, scroll positions, frames). A seek starts from the nearest checkpoint or snapshot before it.
-				Past 64 checkpoints, one in two goes.
-			</p>
+		<section id="modules">
+			<div class="head"><h2>Modules</h2><span>Only what your pages use</span></div>
+			<p class="claim lead">A badge in a shadow root reaches the copy. Load the module, nothing else.</p>
+			<Live extras={["shadow"]} modules={["cssom", "shadow"]} />
+			<div class="what-grid how-grid">
+				<div><span class="k">shadow()</span>Shadow roots, attached before or after the recording starts. 0.2 KB.</div>
+				<div><span class="k">cssom()</span>Rules added by script, <code>replaceSync</code> and constructed sheets. 0.5 KB.</div>
+				<div><span class="k">iframes()</span>Same-origin frames, recorded as part of the page. 0.2 KB.</div>
+			</div>
 		</section>
 
 		<section id="source">
 			<div class="head"><h2>Source</h2><span>What runs on this page</span></div>
 			<div class="arch-grid code-grid">
-				<pre class="code"><span class="c">// the recorded page lives in an iframe</span>
-const rec = record(frame.contentWindow, {"{"} mask, modules: [cssom()] {"}"});
-const snap = rec.snap();
-const player = createPlayer({"{"}
-  root: stage,
-  chunks: [{"{"} base: snap.base, seq: 0, tape: snap.tape {"}"}],
-{"}"});
-
-setInterval(() =&gt; {"{"}
-  const d = rec.drain();
-  player.append([{"{"} base: d.base, seq: ++seq, tape: d.tape {"}"}]);
-  if (!player.playing) player.play();
-{"}"}, 250);</pre>
+				<CodeBlock code={demoSnippet} />
 				<div>
 					<p class="note">
 						No server here: chunks go straight from the recorder to the player. In production, <code>connect</code> sends them to your endpoint,

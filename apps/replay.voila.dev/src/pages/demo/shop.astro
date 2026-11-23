@@ -1,0 +1,132 @@
+---
+// The page the demos record: plain HTML, its style and script left as written (is:global, is:inline).
+---
+
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=560" />
+		<meta name="robots" content="noindex" />
+		<title>Demo checkout · replay</title>
+		<!--
+			The page the demos record. Its natural size is fixed (560 wide, see live.ts): the demo
+			scales it, and its copy, to fit. `?extras=` adds what a feature demo needs:
+			block (a box replay never reads), unmask (a field kept readable), shadow (a badge in a
+			shadow root), canvas (a signature pad).
+		-->
+		<style is:global>
+			* { box-sizing: border-box; margin: 0 }
+			html, body { height: 100%; overflow: hidden }
+			body { font: 15px/1.4 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; color: #0c0c0e; background: #f1f1ec; padding: 20px }
+			.card { background: #fff; border: 1px solid #d9d9d4; border-radius: 16px; padding: 22px; display: flex; flex-direction: column; gap: 16px; height: 100% }
+			header { display: flex; justify-content: space-between; align-items: center; min-height: 26px }
+			h1 { font-size: 20px; letter-spacing: -.02em }
+			.item { display: grid; grid-template-columns: 52px 1fr auto; gap: 14px; align-items: center }
+			.thumb { width: 52px; height: 52px; border-radius: 12px; background: linear-gradient(135deg, #2633ff, #a9b1ff) }
+			.item b { display: block }
+			.item small { color: #77777f }
+			.qty { display: flex; align-items: center; gap: 10px; font-variant-numeric: tabular-nums }
+			.qty button { width: 30px; height: 30px; border-radius: 50%; border: 1px solid #d9d9d4; background: #fff; font: inherit; cursor: pointer }
+			.qty button:hover { border-color: #2633ff; color: #2633ff }
+			label { display: flex; flex-direction: column; gap: 5px; font-size: 13px; color: #77777f }
+			input { font: inherit; color: #0c0c0e; padding: 10px 12px; border: 1px solid #d9d9d4; border-radius: 10px; outline: none; width: 100% }
+			input:focus { border-color: #2633ff; box-shadow: 0 0 0 3px #2633ff22 }
+			.fields { display: grid; grid-template-columns: 1fr 1fr; gap: 12px }
+			.extra { display: none !important }
+			.total { display: flex; justify-content: space-between; align-items: baseline; border-top: 1px solid #ececE7; padding-top: 14px; margin-top: auto }
+			.total b { font-size: 20px; font-variant-numeric: tabular-nums }
+			.pay { border: 0; border-radius: 12px; padding: 13px; background: #2633ff; color: #fff; font: inherit; font-weight: 600; cursor: pointer }
+			.pay:hover { background: #1a24c9 }
+			.pay.done { background: #1fbf75 }
+			.saved { display: flex; justify-content: space-between; align-items: center; padding: 11px 12px; border-radius: 10px; background: #0c0c0e; color: #fff; font-size: 13px }
+			.saved b { letter-spacing: .06em }
+			.sign { gap: 5px }
+			canvas { width: 100%; height: 56px; border: 1px dashed #c4c4be; border-radius: 10px; touch-action: none; cursor: crosshair; display: block }
+			body.with-block .block, body.with-unmask .unmask, body.with-shadow .shadow, body.with-canvas .sign { display: flex !important }
+			body.with-canvas .sign { flex-direction: column }
+			body.with-unmask .fields { grid-template-columns: 1fr 1fr 1fr }
+		</style>
+	</head>
+	<body>
+		<div class="card">
+			<header><h1>Checkout</h1><span class="shadow extra" id="badge-host"></span></header>
+
+			<div class="item">
+				<span class="thumb"></span>
+				<span><b>Trail shoes</b><small>Size 42 · Blue · 129 €</small></span>
+				<span class="qty"><button data-q="-1" aria-label="Less">−</button><span class="n">1</span><button data-q="1" aria-label="More">+</button></span>
+			</div>
+
+			<div class="fields">
+				<label>Email<input name="email" type="email" autocomplete="off" placeholder="you@example.com" /></label>
+				<label class="unmask extra">Coupon · unmasked<input name="coupon" data-va-unmask autocomplete="off" placeholder="SPRING" /></label>
+				<label>Card number<input name="card" inputmode="numeric" autocomplete="cc-number" placeholder="4242 4242 4242 4242" /></label>
+			</div>
+
+			<div class="saved block extra" data-va-block><span>Saved card · blocked</span><b>•••• 4242 · Ada Lovelace</b></div>
+			<label class="sign extra">Sign here · canvas<canvas width="480" height="56"></canvas></label>
+
+			<div class="total"><span>Total</span><b class="sum">129 €</b></div>
+			<button class="pay">Pay</button>
+		</div>
+		<script is:inline>
+			const extras = new URLSearchParams(location.search).get("extras")?.split(",") ?? [];
+			for (const x of extras) document.body.classList.add(`with-${x}`);
+			// What this demo does not show leaves the page rather than hide in it: the copy should
+			// match the page, and a hidden blocked box still takes a slot in the copy's layout.
+			for (const name of ["block", "unmask", "shadow", "canvas"])
+				if (!extras.includes(name)) for (const el of document.querySelectorAll(`.extra.${name === "canvas" ? "sign" : name}`)) el.remove();
+
+			const n = document.querySelector(".n");
+			const sum = document.querySelector(".sum");
+			const pay = document.querySelector(".pay");
+			const set = (q) => {
+				n.textContent = String(q);
+				sum.textContent = `${q * 129} €`;
+			};
+			for (const b of document.querySelectorAll("[data-q]"))
+				b.addEventListener("click", () => set(Math.max(1, Number(n.textContent) + Number(b.dataset.q))));
+			pay.addEventListener("click", () => {
+				pay.classList.add("done");
+				pay.textContent = "Paid ✓";
+				setTimeout(() => {
+					pay.classList.remove("done");
+					pay.textContent = "Pay";
+				}, 1600);
+			});
+
+			// A badge in a shadow root: recorded by the shadow() module.
+			if (extras.includes("shadow")) {
+				const root = document.getElementById("badge-host").attachShadow({ mode: "open" });
+				root.innerHTML = `<style>span{display:inline-flex;gap:6px;align-items:center;padding:3px 10px;border-radius:999px;background:#e9fbf2;color:#127a4a;font:600 12px system-ui}i{width:7px;height:7px;border-radius:50%;background:#1fbf75}</style><span><i></i>Secure · shadow DOM</span>`;
+			}
+
+			// A signature pad: its pixels reach the copy through the canvas() module.
+			const canvas = document.querySelector("canvas");
+			if (canvas) {
+				const ctx = canvas.getContext("2d");
+				ctx.lineWidth = 2.5;
+				ctx.lineCap = "round";
+				ctx.strokeStyle = "#2633ff";
+				let last = null;
+				const at = (e) => {
+					const r = canvas.getBoundingClientRect();
+					return [((e.clientX - r.left) / r.width) * canvas.width, ((e.clientY - r.top) / r.height) * canvas.height];
+				};
+				canvas.addEventListener("pointerdown", (e) => (last = at(e)));
+				canvas.addEventListener("pointermove", (e) => {
+					if (!last) return;
+					const p = at(e);
+					ctx.beginPath();
+					ctx.moveTo(...last);
+					ctx.lineTo(...p);
+					ctx.stroke();
+					last = p;
+				});
+				for (const t of ["pointerup", "pointerleave"]) canvas.addEventListener(t, () => (last = null));
+				window.clearSignature = () => ctx.clearRect(0, 0, canvas.width, canvas.height);
+			}
+		</script>
+	</body>
+</html>
