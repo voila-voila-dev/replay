@@ -1,5 +1,11 @@
 # @voila.dev/replay
 
+## 0.4.0
+
+### Minor Changes
+
+- [#11](https://github.com/voila-voila-dev/replay/pull/11) [`871d8ee`](https://github.com/voila-voila-dev/replay/commit/871d8eee3df734b34ef5edbf95a21063e3dbaf96) Thanks [@emilienbidet](https://github.com/emilienbidet)! - feat(play): pictures load from their kept copies only. Of a `srcset`, the candidates without a copy are dropped (all kept when none has one), so the viewer's screen no longer picks a picture from the site as it is today. `createPlayer({ sources })` restricts the copy to those origins for pictures, fonts and media: an address left uncopied is refused rather than fetched.
+
 ## 0.3.1
 
 ### Patch Changes
