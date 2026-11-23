@@ -52,7 +52,7 @@ The browser suites take `--target`, one or several of `chromium`, `webkit`, `fir
 
 ## Site
 
-[replay.voila.dev](https://replay.voila.dev), with live demos and the benchmark against rrweb, lives in `apps/replay.voila.dev` (a Bun workspace: the demos import the library from `src`).
+[replay.voila.dev](https://replay.voila.dev), with live demos and the benchmark against rrweb, lives in `apps/replay.voila.dev`, with its own install: the demos import the library from `src`, so the site always shows this code.
 
 ## License
 

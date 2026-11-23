@@ -3,8 +3,8 @@
 The site of replay, on [replay.voila.dev](https://replay.voila.dev): Astro, fully static, served by Cloudflare Workers static assets. Same design as [freewheel.voila.dev](https://freewheel.voila.dev) and [voila.dev](https://voila.dev).
 
 ```sh
-bun install                      # at the root of the repo (workspace)
 cd apps/replay.voila.dev
+bun install                      # the site's own install, apart from the library's
 bun run dev                      # http://localhost:4321
 bun run build                    # dist/
 ```
