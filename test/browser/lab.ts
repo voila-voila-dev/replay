@@ -445,6 +445,67 @@ async function lifecycle(): Promise<Array<string>> {
 	return out;
 }
 
+/**
+ * What the copy shows, beyond its tree: the oracle compares nodes, not layout nor pixels.
+ * A blocked element the page does not render takes no room in the copy; a canvas's pixels show
+ * in the copy, whose document runs no script (a canvas there would render its fallback content).
+ */
+async function shown(): Promise<Array<string>> {
+	const out: Array<string> = [];
+	const host = document.getElementById("replay") as HTMLElement;
+
+	// A hidden blocked box, in a column with a gap: the paragraph after it stays where it is.
+	{
+		const win = await loadSite("__fuzz__");
+		const doc = win.document;
+		await sleep(30);
+		const col = doc.createElement("div");
+		col.style.cssText = "display:flex;flex-direction:column;gap:16px";
+		col.innerHTML = '<p style="margin:0">a</p><div data-va-block style="display:none">caché</div><p id="after" style="margin:0">b</p>';
+		doc.body.prepend(col);
+		const rec = await recorderIn(win, { printEvery: 0 });
+		const snap = own(rec.snap());
+		host.replaceChildren();
+		const player = createPlayer({ root: host, chunks: [{ base: snap.base, tape: snap.tape }] });
+		player.seek(player.duration);
+		await sleep(50);
+		const live = (doc.getElementById("after") as HTMLElement).offsetTop;
+		const copy = (player.document.getElementById("after") as HTMLElement | null)?.offsetTop;
+		if (copy !== live) out.push(`bloc caché : le paragraphe suivant est à ${copy} px dans la copie, ${live} px sur la page`);
+		player.destroy();
+		rec.stop();
+	}
+
+	// A canvas drawn on the page: its picture shows in the copy.
+	{
+		const win = await loadSite("__fuzz__");
+		const doc = win.document;
+		await sleep(30);
+		const c = doc.createElement("canvas");
+		c.width = 40;
+		c.height = 20;
+		doc.body.prepend(c);
+		const ctx = c.getContext("2d") as CanvasRenderingContext2D;
+		ctx.fillStyle = "#f00";
+		ctx.fillRect(0, 0, 40, 20);
+		const rec = await recorderIn(win, { printEvery: 0, all: true });
+		const snap = own(rec.snap());
+		await sleep(150);
+		const d = own(rec.drain());
+		host.replaceChildren();
+		const player = createPlayer({ root: host, chunks: [{ base: snap.base, tape: snap.tape }, { base: d.base, tape: d.tape }] });
+		player.seek(player.duration);
+		await sleep(100);
+		const copy = player.document.querySelector("canvas");
+		const picture = copy ? player.document.defaultView?.getComputedStyle(copy).backgroundImage || "" : "";
+		if (!copy) out.push("canvas : absent de la copie");
+		else if (!picture.includes("data:image/")) out.push("canvas : son image ne se voit pas dans la copie (un document sans script montre le contenu de repli)");
+		player.destroy();
+		rec.stop();
+	}
+	return out;
+}
+
 /** Where the copy holds more or fewer nodes than the page, the way PRINT counts them. */
 function census(live: Node, copy: Node, path = ""): string | null {
 	const kids = (n: Node) =>
@@ -521,6 +582,7 @@ async function auto() {
 	}
 	await post("/checkpoint", await checkpoint().catch((e) => [String(e)]));
 	await post("/lifecycle", await lifecycle().catch((e) => [String(e)]));
+	await post("/shown", await shown().catch((e) => [String(e)]));
 	await post("/done", {});
 }
 
@@ -532,6 +594,7 @@ async function auto() {
 	fuzz,
 	checkpoint,
 	lifecycle,
+	shown,
 };
 if (/[?&]auto\b/.test(location.search)) {
 	addEventListener("error", (e) => void fetch("/error", { method: "POST", body: String(e.message) }));
