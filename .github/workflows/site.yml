@@ -38,8 +38,6 @@ jobs:
         with:
           node-version: 22
       - run: bun install --frozen-lockfile
-      # The demos import the library from this repo: build it first.
-      - run: bun run build
       - run: bun run build
         working-directory: apps/replay.voila.dev
         env:
