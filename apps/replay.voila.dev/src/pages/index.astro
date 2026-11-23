@@ -1,0 +1,151 @@
+---
+import Cta from "../components/Cta.astro";
+import Footer from "../components/Footer.astro";
+import Live from "../components/Live.astro";
+import Top from "../components/Top.astro";
+import { headline, sizes } from "../data/bench";
+import { browsers, npm, repo, version } from "../data/site";
+import Base from "../layouts/Base.astro";
+
+const pad = (i: number) => String(i + 1).padStart(2, "0");
+const marquee = [`${sizes.replay.send} KB recorder`, "Masked by default", "Says when it misses", "Seeks without replaying", "No HTML parser", "Open source · MIT"];
+type Fix = { pain: string; fix: string; status: "measured" | "built" };
+const fixes: Fix[] = [
+	{ pain: "The recorder freezes the page it records.", fix: `The page is read at rest, at most every 50 ms. ${headline.startRatio}× shorter start than rrweb.`, status: "measured" },
+	{ pain: `A ${sizes.rrweb.record} KB script for a feature visitors never see.`, fix: `${sizes.replay.send} KB gzip, recording and sending included.`, status: "measured" },
+	{ pain: "Every visitor uploads the same stylesheets again.", fix: "What the server already holds goes as a hash.", status: "built" },
+	{ pain: "Passwords and card numbers end up on your servers.", fix: "Masked in the core, before any module. Always.", status: "built" },
+	{ pain: "A chunk gets lost and the replay quietly lies.", fix: "The hole is marked. Play resumes at the next snapshot.", status: "built" },
+	{ pain: "Seeking back replays the whole session.", fix: "A checkpoint every 10 s. Seeks start from the nearest.", status: "built" },
+	{ pain: "The replay runs the site's scripts.", fix: "Rebuilt through the DOM API, in a sandbox, without scripts.", status: "built" },
+	{ pain: "One broken plugin kills the recording.", fix: "A module that throws is cut alone. The rest goes on.", status: "built" },
+];
+const fixStatus = { measured: ["Measured", "#1fbf75"], built: ["Built", "#2633ff"] };
+const steps = [
+	["Record", "A snapshot, then what changed. Typed values stay on the page."],
+	["Send", "Chunks to your endpoint. A beacon on the way out."],
+	["Play", "A sandboxed copy, rebuilt node by node. Seek anywhere."],
+];
+const demos = [
+	["live", "Live", "Your page on the left, its copy on the right, the tape in between."],
+	["mask", "Masking", "Type a card number. The copy only gets stars."],
+	["holes", "Holes", "Lose a chunk on purpose. The player says so."],
+	["seek", "Seek", "Scrub back through the session, from checkpoints."],
+];
+const maxKb = Math.max(sizes.rrweb.record, sizes.replay.send);
+---
+
+<Base
+	home
+	title="replay · session replay that stays out of the way"
+	description={`replay records what your visitors see and plays it back, node by node. ${sizes.replay.send} KB gzip with sending, ${headline.startRatio}× shorter start than rrweb, masked by default, honest about holes. Open source, MIT.`}
+>
+	<div class="in first-screen">
+		<Top />
+		<div class="hero">
+			<h1 class="word">replay</h1>
+			<Live compact stats={false} />
+			<div class="under">
+				<p>See what your visitors saw. Without slowing them down.</p>
+				<div><span class="k">For</span>Product teams, support, developers</div>
+				<div><span class="k">Status</span><a href={npm}>v{version} on npm ↗</a></div>
+			</div>
+		</div>
+	</div>
+
+	<div class="marquee" aria-hidden="true">
+		<div class="track">{[...marquee, ...marquee].map((name) => <span>{name}</span>)}</div>
+	</div>
+
+	<main class="in">
+		<section id="why">
+			<div class="head"><h2>Why</h2><span>What a session recorder should not do</span></div>
+			<div class="table fixes">
+				<div class="row th"><span>No.</span><span>The pain</span><span>replay</span><span class="u">Status</span></div>
+				{
+					fixes.map((f, i) => (
+						<div class="row">
+							<span class="n">{pad(i)}</span>
+							<p class="pain">{f.pain}</p>
+							<b>{f.fix}</b>
+							<span class="st u" style={`--s:${fixStatus[f.status][1]}`}>{fixStatus[f.status][0]}</span>
+						</div>
+					))
+				}
+			</div>
+		</section>
+
+		<section id="lighter">
+			<div class="head"><h2>Lighter</h2><span>Same pages, same masking, same browser</span></div>
+			<div class="thousand">
+				<span class="n">{headline.startRatio}×</span>
+				<p>shorter freeze than rrweb when recording starts, on {headline.page}.</p>
+			</div>
+			<div class="versus">
+				<div class="ours">
+					<b>replay</b>
+					<span class="meter"><i style={`width:${(sizes.replay.send / maxKb) * 100}%`} /></span>
+					<span class="k">{sizes.replay.send} KB gzip · record + send</span>
+				</div>
+				<div>
+					<b>rrweb</b>
+					<span class="meter"><i style={`width:${(sizes.rrweb.record / maxKb) * 100}%`} /></span>
+					<span class="k">{sizes.rrweb.record} KB gzip · record only</span>
+				</div>
+			</div>
+			<a class="btn more" href="/benchmark">See the full benchmark →</a>
+		</section>
+
+		<section id="install">
+			<div class="head"><h2>How</h2><span>Three calls</span></div>
+			<div class="steps three">
+				{steps.map(([name, text], i) => <div><span class="n">{pad(i)}</span><b>{name}</b><p>{text}</p></div>)}
+			</div>
+			<div class="arch-grid code-grid">
+				<pre class="code"><span class="c">// bun add @voila.dev/replay</span>
+import {"{"} record {"}"} from "@voila.dev/replay/record";
+import {"{"} connect {"}"} from "@voila.dev/replay/send";
+
+const rec = record(window, {"{"} mask: "inputs" {"}"});
+const link = connect({"{"} endpoint: "/replay", head {"}"});
+link.send(rec.snap());
+setInterval(() =&gt; link.send(rec.drain()), 5000);
+addEventListener("pagehide", () =&gt; link.leave(rec.drain()));</pre>
+				<pre class="code"><span class="c">// later, wherever you watch</span>
+import {"{"} createPlayer {"}"} from "@voila.dev/replay/play";
+
+const player = createPlayer({"{"} root, chunks {"}"});
+player.play();
+player.seek(42_000); <span class="c">// from the nearest checkpoint</span></pre>
+			</div>
+			<div class="badges">
+				<a class="badge" href={repo}><i aria-hidden="true"></i>100% open source · MIT</a>
+				<a class="badge" href={npm}><i aria-hidden="true"></i>Zero dependencies</a>
+				<a class="badge" href={repo}><i aria-hidden="true"></i>{browsers.join(" · ")} and later</a>
+			</div>
+		</section>
+
+		<section id="demos">
+			<div class="head"><h2>Demos</h2><span>Live, in your browser</span></div>
+			<div class="demos four">
+				{
+					demos.map(([id, name, text], i) => (
+						<a href={`/demos#${id}`}>
+							<figure>
+								<div class="screen">
+									<span class="rec">● REC</span>
+									<span class="soon">{name}</span>
+									<span class="tc">Try it →</span>
+								</div>
+								<figcaption><span class="n">{pad(i)}</span><b>{name}</b><p>{text}</p></figcaption>
+							</figure>
+						</a>
+					))
+				}
+			</div>
+		</section>
+
+		<Cta />
+	</main>
+	<div class="in"><Footer /></div>
+</Base>

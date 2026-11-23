@@ -1,0 +1,19 @@
+{
+	"name": "replay.voila.dev",
+	"private": true,
+	"type": "module",
+	"scripts": {
+		"dev": "bunx --bun astro dev",
+		"build": "bunx --bun astro build",
+		"preview": "bunx --bun astro preview",
+		"deploy": "bunx --bun astro build && bunx wrangler deploy"
+	},
+	"dependencies": {
+		"@voila.dev/replay": "workspace:*",
+		"astro": "^7.4.13"
+	},
+	"devDependencies": {
+		"@astrojs/sitemap": "^3.7.6",
+		"wrangler": "^4.166.0"
+	}
+}
