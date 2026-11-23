@@ -1,0 +1,361 @@
+// Live demos: a page in an iframe is recorded by the real @voila.dev/replay, and played back
+// next to it, in a sandboxed copy, a fraction of a second behind. Every demo on the site is one
+// `[data-live]` block; its data attributes pick the mask, the autopilot and the extras.
+import { type Chunk, length, Op, type Tape } from "@voila.dev/replay/format";
+import { cssom } from "@voila.dev/replay/modules";
+import { createPlayer, type Player } from "@voila.dev/replay/play";
+import { type Mask, type Recorder, record } from "@voila.dev/replay/record";
+
+const DRAIN_MS = 250;
+const LAG_MAX_MS = 600;
+const IDLE_RESUME_MS = 6000;
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+type Step =
+	| { kind: "move"; to: string }
+	| { kind: "click"; on: string }
+	| { kind: "type"; into: string; text: string }
+	| { kind: "clear"; into: string }
+	| { kind: "wait"; ms: number };
+
+/** What the autopilot does in the demo shop, in a loop, until someone takes over. */
+const SCRIPT: Step[] = [
+	{ kind: "wait", ms: 600 },
+	{ kind: "click", on: '[data-q="1"]' },
+	{ kind: "wait", ms: 300 },
+	{ kind: "click", on: '[data-q="1"]' },
+	{ kind: "type", into: 'input[name="email"]', text: "ada@example.com" },
+	{ kind: "type", into: 'input[name="card"]', text: "4242 4242 4242 4242" },
+	{ kind: "type", into: 'input[name="name"]', text: "Ada Lovelace" },
+	{ kind: "click", on: '[data-tab="reviews"]' },
+	{ kind: "wait", ms: 900 },
+	{ kind: "click", on: '[data-tab="cart"]' },
+	{ kind: "click", on: ".pay" },
+	{ kind: "wait", ms: 1800 },
+	{ kind: "click", on: '[data-q="-1"]' },
+	{ kind: "click", on: '[data-q="-1"]' },
+	{ kind: "clear", into: 'input[name="email"]' },
+	{ kind: "clear", into: 'input[name="card"]' },
+	{ kind: "clear", into: 'input[name="name"]' },
+	{ kind: "wait", ms: 800 },
+];
+
+/** A fake pointer over the source page: it sends real pointer events, which the recorder writes. */
+class Pilot {
+	x = 40;
+	y = 40;
+	stopped = false;
+	private takenAt = 0;
+	constructor(
+		private readonly frame: HTMLIFrameElement,
+		private readonly dot: HTMLElement,
+	) {
+		const doc = frame.contentDocument as Document;
+		// A real hand on the page: the pilot steps aside, and comes back once the page is idle.
+		for (const type of ["pointerdown", "keydown", "wheel"])
+			doc.addEventListener(type, (e) => {
+				if (e.isTrusted) this.takenAt = performance.now();
+			});
+		doc.addEventListener("pointermove", (e) => {
+			if (e.isTrusted && e.pointerType === "mouse" && Math.abs(e.clientX - this.x) + Math.abs(e.clientY - this.y) > 4)
+				this.takenAt = performance.now();
+		});
+	}
+
+	get taken() {
+		return performance.now() - this.takenAt < IDLE_RESUME_MS;
+	}
+
+	private get doc() {
+		return this.frame.contentDocument as Document;
+	}
+
+	private send(type: string, target: Element) {
+		const Ctor = (this.frame.contentWindow as Window & typeof globalThis).PointerEvent;
+		target.dispatchEvent(new Ctor(type, { bubbles: true, clientX: this.x, clientY: this.y, pointerType: "mouse" }));
+	}
+
+	private show() {
+		this.dot.style.opacity = this.taken ? "0" : "1";
+		this.dot.style.transform = `translate(${this.x}px,${this.y}px)`;
+	}
+
+	async move(sel: string) {
+		const el = this.doc.querySelector(sel);
+		if (!el) return;
+		const r = el.getBoundingClientRect();
+		const tx = r.left + r.width / 2;
+		const ty = r.top + r.height / 2;
+		const fx = this.x;
+		const fy = this.y;
+		const steps = 14;
+		for (let i = 1; i <= steps && !this.taken; i++) {
+			const k = i / steps;
+			const e = k < 0.5 ? 2 * k * k : 1 - (-2 * k + 2) ** 2 / 2;
+			this.x = fx + (tx - fx) * e;
+			this.y = fy + (ty - fy) * e;
+			this.show();
+			this.send("pointermove", this.doc.elementFromPoint(this.x, this.y) || this.doc.body);
+			await sleep(28);
+		}
+	}
+
+	async click(sel: string) {
+		await this.move(sel);
+		const el = this.doc.querySelector(sel) as HTMLElement | null;
+		if (!el || this.taken) return;
+		this.send("pointerdown", el);
+		await sleep(70);
+		this.send("pointerup", el);
+		el.click();
+		await sleep(160);
+	}
+
+	async type(sel: string, text: string) {
+		await this.click(sel);
+		const el = this.doc.querySelector(sel) as HTMLInputElement | null;
+		if (!el || this.taken) return;
+		el.focus();
+		for (const ch of text) {
+			if (this.taken) return;
+			el.value += ch;
+			el.dispatchEvent(new Event("input", { bubbles: true }));
+			await sleep(45 + Math.random() * 40);
+		}
+	}
+
+	clear(sel: string) {
+		const el = this.doc.querySelector(sel) as HTMLInputElement | null;
+		if (!el) return;
+		el.value = "";
+		el.dispatchEvent(new Event("input", { bubbles: true }));
+		el.blur();
+	}
+
+	async run() {
+		while (!this.stopped) {
+			for (const s of SCRIPT) {
+				while (this.taken && !this.stopped) {
+					this.show();
+					await sleep(400);
+				}
+				if (this.stopped) return;
+				if (s.kind === "move") await this.move(s.to);
+				else if (s.kind === "click") await this.click(s.on);
+				else if (s.kind === "type") await this.type(s.into, s.text);
+				else if (s.kind === "clear") this.clear(s.into);
+				else await sleep(s.ms);
+			}
+		}
+	}
+}
+
+const NAMES: Record<number, string> = Object.fromEntries(
+	Object.entries(Op)
+		.filter(([, v]) => typeof v === "number")
+		.map(([k, v]) => [v, k]),
+);
+
+/** One line per op, for the tape panel. Long strings are cut. */
+function lines(tape: Tape): string[] {
+	const out: string[] = [];
+	for (let i = 0; i < tape.length; ) {
+		const n = length(tape, i);
+		if (n < 0) break;
+		const op = tape[i] as number;
+		const args = tape
+			.slice(i + 1, i + n)
+			.map((t) => (typeof t === "string" ? JSON.stringify(t.length > 28 ? `${t.slice(0, 26)}…` : t) : String(t)));
+		out.push(`${NAMES[op] ?? op} ${args.slice(0, 6).join(" ")}${args.length > 6 ? " …" : ""}`);
+		i += n;
+	}
+	return out;
+}
+
+async function gzipped(text: string): Promise<number | null> {
+	const CS = (globalThis as { CompressionStream?: typeof CompressionStream }).CompressionStream;
+	if (!CS) return null;
+	const stream = new Blob([text]).stream().pipeThrough(new CS("gzip"));
+	return (await new Response(stream).arrayBuffer()).byteLength;
+}
+
+const kb = (b: number) => (b < 1000 ? `${b} B` : `${(b / 1000).toFixed(1)} KB`);
+
+function mount(box: HTMLElement) {
+	const frame = box.querySelector<HTMLIFrameElement>(".src iframe");
+	const stage = box.querySelector<HTMLElement>(".dst .stage");
+	const dot = box.querySelector<HTMLElement>(".src .ghost");
+	if (!frame || !stage || !dot) return;
+	const maskSelect = box.querySelector<HTMLSelectElement>("[data-mask-select]");
+	const dropButton = box.querySelector<HTMLButtonElement>("[data-drop]");
+	const seek = box.querySelector<HTMLInputElement>("[data-seek]");
+	const tapeView = box.querySelector<HTMLElement>("[data-tape]");
+	const stat = (name: string) => box.querySelector<HTMLElement>(`[data-stat="${name}"]`);
+	const autopilot = box.dataset.autopilot !== "off";
+
+	let rec: Recorder | null = null;
+	let player: Player | null = null;
+	let pilot: Pilot | null = null;
+	let timer = 0;
+	let seq = 0;
+	let raw = 0;
+	let ops = 0;
+	let dropNext = false;
+	let holes = 0;
+	let following = true;
+	const all: Chunk[] = [];
+	const log: string[] = [];
+
+	const fit = () => {
+		if (!player) return;
+		const { width } = player.size;
+		const k = Math.min(1, stage.clientWidth / width);
+		const inner = stage.firstElementChild as HTMLElement | null;
+		if (inner) inner.style.transform = `scale(${k})`;
+	};
+
+	const push = (chunk: Chunk, kept: boolean) => {
+		const text = JSON.stringify(chunk.tape);
+		raw += text.length;
+		const these = lines(chunk.tape as Tape);
+		ops += these.length;
+		if (tapeView) {
+			log.push(...these.map((l) => (kept ? l : `✕ ${l}`)));
+			log.splice(0, Math.max(0, log.length - 60));
+			tapeView.textContent = log.join("\n");
+			tapeView.scrollTop = tapeView.scrollHeight;
+		}
+		if (!kept) return;
+		all.push(chunk);
+	};
+
+	const stats = async () => {
+		stat("raw")?.replaceChildren(kb(raw));
+		stat("ops")?.replaceChildren(ops.toLocaleString("en-US"));
+		stat("holes")?.replaceChildren(String(holes));
+		const g = await gzipped(JSON.stringify(all.map((c) => c.tape)));
+		if (g != null) stat("gzip")?.replaceChildren(kb(g));
+	};
+
+	// The player pauses at the end of what it has; waiting for the next chunk would add up.
+	// Past LAG_MAX behind, it jumps to DRAIN_MS behind the live page.
+	const follow = () => {
+		if (!player || !following) return;
+		if (player.duration - player.time > LAG_MAX_MS) player.seek(player.duration - DRAIN_MS);
+		if (!player.playing) player.play();
+	};
+
+	const start = () => {
+		const win = frame.contentWindow as Window;
+		clearInterval(timer);
+		rec?.stop();
+		player?.destroy();
+		all.length = 0;
+		log.length = 0;
+		raw = ops = holes = seq = 0;
+		const mask = ((maskSelect?.value || box.dataset.mask || "inputs") as Mask);
+		rec = record(win, { mask, modules: [cssom()] });
+		if (!rec) {
+			box.classList.add("unsupported");
+			return;
+		}
+		const snap = rec.snap();
+		const first: Chunk = { base: snap.base, seq: seq++, tape: snap.tape };
+		push(first, true);
+		player = createPlayer({ root: stage, chunks: [first], skipIdle: false, sources: [location.origin] });
+		player.on("size", fit);
+		player.on("time", (t) => {
+			if (seek && player) {
+				seek.max = String(Math.round(player.duration));
+				seek.value = String(Math.round(t));
+			}
+		});
+		fit();
+		timer = window.setInterval(() => {
+			if (!rec || !player) return;
+			const d = rec.drain();
+			if (!d.tape.length) return;
+			const chunk: Chunk = { base: d.base, seq: seq++, tape: d.tape };
+			// The demo of holes: this chunk never reaches the server. The player marks the hole,
+			// and waits for the next snapshot rather than play a page that is no longer the one recorded.
+			if (dropNext) {
+				dropNext = false;
+				holes++;
+				push(chunk, false);
+				box.classList.add("holed");
+				setTimeout(() => {
+					if (!rec || !player) return;
+					const s = rec.snap();
+					const again: Chunk = { base: s.base, seq: seq++, tape: s.tape };
+					push(again, true);
+					player.append([again]);
+					box.classList.remove("holed");
+					follow();
+				}, 2000);
+				stats();
+				return;
+			}
+			push(chunk, true);
+			player.append([chunk]);
+			follow();
+			stats();
+		}, DRAIN_MS);
+		stats();
+	};
+
+	const boot = () => {
+		start();
+		if (autopilot && !pilot) {
+			pilot = new Pilot(frame, dot);
+			pilot.run();
+		}
+	};
+
+	maskSelect?.addEventListener("change", () => {
+		frame.contentWindow?.location.reload();
+	});
+	dropButton?.addEventListener("click", () => {
+		dropNext = true;
+	});
+	if (seek) {
+		seek.addEventListener("input", () => {
+			following = false;
+			player?.pause();
+			player?.seek(Number(seek.value));
+			box.classList.add("scrubbing");
+		});
+		box.querySelector("[data-live-follow]")?.addEventListener("click", () => {
+			following = true;
+			box.classList.remove("scrubbing");
+			if (player) {
+				player.seek(player.duration);
+				player.play();
+			}
+		});
+	}
+	new ResizeObserver(fit).observe(stage);
+
+	// A new mask reloads the page: a new page view, a new recorder, a new copy.
+	frame.addEventListener("load", () => {
+		if (pilot) pilot.stopped = true;
+		pilot = null;
+		boot();
+	});
+	boot();
+}
+
+// Started once visible: an iframe offscreen costs nothing until it is seen.
+const io = new IntersectionObserver(
+	(entries) => {
+		for (const e of entries)
+			if (e.isIntersecting) {
+				io.unobserve(e.target);
+				const frame = e.target.querySelector<HTMLIFrameElement>(".src iframe");
+				if (!frame) continue;
+				frame.addEventListener("load", () => mount(e.target as HTMLElement), { once: true });
+				frame.src = frame.dataset.src || "/demo/shop.html";
+			}
+	},
+	{ rootMargin: "200px" },
+);
+for (const box of document.querySelectorAll<HTMLElement>("[data-live]")) io.observe(box);

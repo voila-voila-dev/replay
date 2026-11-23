@@ -1,0 +1,71 @@
+---
+// A live demo: the demo shop on the left, recorded by @voila.dev/replay; its copy on the right,
+// rebuilt by the player in a sandboxed iframe. Extras are opt-in: tape panel, mask picker,
+// a button that loses the next chunk, a seek bar. See src/scripts/live.ts.
+interface Props {
+	mask?: "inputs" | "text" | "none";
+	tape?: boolean;
+	maskPicker?: boolean;
+	drop?: boolean;
+	seek?: boolean;
+	stats?: boolean;
+	compact?: boolean;
+}
+const { mask = "inputs", tape = false, maskPicker = false, drop = false, seek = false, stats = true, compact = false } = Astro.props;
+---
+
+<div class:list={["live", { compact }]} data-live data-mask={mask}>
+	<div class="panes">
+		<figure class="src">
+			<figcaption><span class="dot on"></span>Your page<em>try it</em></figcaption>
+			<div class="frame">
+				<iframe title="Demo shop, recorded" loading="lazy" data-src="/demo/shop.html"></iframe>
+				<i class="ghost" aria-hidden="true"></i>
+			</div>
+		</figure>
+		<figure class="dst">
+			<figcaption><span class="dot rec"></span>The copy<em class="lag">0.25 s behind</em><em class="hole">Hole · waiting for a snapshot</em><em class="past">Rewound</em></figcaption>
+			<div class="stage"></div>
+		</figure>
+	</div>
+	{
+		(maskPicker || drop || seek) && (
+			<div class="controls">
+				{maskPicker && (
+					<label>
+						<span class="k">Mask</span>
+						<select data-mask-select>
+							<option value="inputs" selected={mask === "inputs"}>inputs (default)</option>
+							<option value="text" selected={mask === "text"}>text</option>
+							<option value="none" selected={mask === "none"}>none</option>
+						</select>
+					</label>
+				)}
+				{drop && <button class="btn small" data-drop>Lose the next chunk</button>}
+				{seek && (
+					<label class="seekbar">
+						<span class="k">Seek</span>
+						<input type="range" min="0" max="0" value="0" step="10" data-seek aria-label="Seek in the recording" />
+						<button class="btn small" data-live-follow>Back to live</button>
+					</label>
+				)}
+			</div>
+		)
+	}
+	{
+		stats && (
+			<div class="lstats">
+				<div><span class="k">Ops on tape</span><strong data-stat="ops">0</strong></div>
+				<div><span class="k">Tape, JSON</span><strong data-stat="raw">0 B</strong></div>
+				<div><span class="k">Tape, gzip</span><strong data-stat="gzip">0 B</strong></div>
+				{drop && <div><span class="k">Holes</span><strong data-stat="holes">0</strong></div>}
+			</div>
+		)
+	}
+	{tape && <pre class="tape" data-tape aria-label="The tape, op by op" />}
+	<p class="unsupported-note">This browser is too old for the recorder (Safari 15.4, Chrome 92, Firefox 90 and later).</p>
+</div>
+
+<script>
+	import "../scripts/live";
+</script>

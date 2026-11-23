@@ -8,6 +8,9 @@
 		"type": "git",
 		"url": "git+https://github.com/voila-voila-dev/replay.git"
 	},
+	"workspaces": [
+		"apps/*"
+	],
 	"sideEffects": false,
 	"files": [
 		"dist",

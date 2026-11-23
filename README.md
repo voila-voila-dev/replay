@@ -50,6 +50,10 @@ npm run size
 
 The browser suites take `--target`, one or several of `chromium`, `webkit`, `firefox` (Playwright), `android` (Chrome on a running emulator, through adb), `ios` (Safari in a booted iOS Simulator), `firefox-esr` (a stock Firefox, `REPLAY_FIREFOX=/path/to/firefox`) and `device` (any browser that opens the URL printed). Where nothing drives the browser, the page runs the suite itself and posts what it finds back to the lab's server.
 
+## Site
+
+[replay.voila.dev](https://replay.voila.dev), with live demos and the benchmark against rrweb, lives in `apps/replay.voila.dev` (a Bun workspace: the demos import the library from `src`).
+
 ## License
 
 MIT

@@ -1,0 +1,53 @@
+---
+import "../styles/global.css";
+
+interface Props {
+	title: string;
+	description: string;
+	home?: boolean;
+}
+
+const { title, description, home = false } = Astro.props;
+const canonical = new URL(Astro.url.pathname, Astro.site);
+
+const software = {
+	"@context": "https://schema.org",
+	"@type": "SoftwareSourceCode",
+	name: "replay",
+	description,
+	url: "https://replay.voila.dev",
+	codeRepository: "https://github.com/voila-voila-dev/replay",
+	programmingLanguage: ["TypeScript"],
+	license: "https://opensource.org/licenses/MIT",
+	author: { "@type": "Organization", name: "Voila Development", url: "https://voila.dev" },
+};
+---
+
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+		<title>{title}</title>
+		<meta name="description" content={description} />
+		<link rel="canonical" href={canonical} />
+		<link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+		<link rel="sitemap" href="/sitemap-index.xml" />
+		<meta property="og:type" content="website" />
+		<meta property="og:site_name" content="replay" />
+		<meta property="og:title" content={title} />
+		<meta property="og:description" content={description} />
+		<meta property="og:url" content={canonical} />
+		<meta name="twitter:card" content="summary" />
+		<link rel="preconnect" href="https://fonts.googleapis.com" />
+		<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+		<link
+			rel="stylesheet"
+			href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,800&family=JetBrains+Mono:wght@400;500&display=swap"
+		/>
+		{home && <script type="application/ld+json" set:html={JSON.stringify(software)} />}
+	</head>
+	<body>
+		<slot />
+	</body>
+</html>

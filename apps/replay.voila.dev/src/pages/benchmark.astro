@@ -1,0 +1,175 @@
+---
+import Cta from "../components/Cta.astro";
+import Footer from "../components/Footer.astro";
+import Top from "../components/Top.astro";
+import { bench, headline, realPages, sizes } from "../data/bench";
+import { repo } from "../data/site";
+import Base from "../layouts/Base.astro";
+
+const pad = (i: number) => String(i + 1).padStart(2, "0");
+const n = (v: number | null, d = 0) => (v == null ? "n/a" : v.toLocaleString("en-US", { minimumFractionDigits: d, maximumFractionDigits: d }));
+const kb = (bytes: number | null) => (bytes == null ? "n/a" : `${n(bytes / 1000, 1)} KB`);
+const times = (a: number | null, b: number | null) => (a && b ? `${n(a / b, 1)}×` : "n/a");
+const maxStart = Math.max(...realPages.map((p) => p.rrweb.longest ?? 0));
+const heaviest = realPages[realPages.length - 1];
+const mem = bench.memory?.pages.filter((p) => realPages.some((r) => r.id === p.id)) ?? [];
+
+const rows: [string, (p: (typeof realPages)[number]) => [string, string]][] = [
+	["Longest task at start", (p) => [`${n(p.replay.longest)} ms`, `${n(p.rrweb.longest)} ms`]],
+	["Total blocking time, 1.5 s", (p) => [`${n(p.replay.tbt)} ms`, `${n(p.rrweb.tbt)} ms`]],
+	["Main thread, 1.5 s, over the bare page", (p) => [`${n(p.replay.task)} ms`, `${n(p.rrweb.task)} ms`]],
+	["Initial capture, gzip", (p) => [kb(p.replay.initialGzip), kb(p.rrweb.initialGzip)]],
+	["600 mutations, gzip", (p) => [kb(p.replay.mutationsGzip), kb(p.rrweb.mutationsGzip)]],
+	["600 mutations, main thread", (p) => [`${n(p.replay.mutationsTask)} ms`, `${n(p.rrweb.mutationsTask)} ms`]],
+];
+const weights: [string, number | null, string][] = [
+	["Recorder", sizes.replay.record, "record"],
+	["Recorder + sending", sizes.replay.send, "record + send: hashing, pieces, retries, beacon"],
+	["Everything", sizes.replay.all, "+ shadow, iframes, cssom, canvas modules"],
+	["Player", sizes.replay.player, "play: mirror, checkpoints, seeking"],
+];
+---
+
+<Base
+	title="replay benchmark · against rrweb"
+	description={`@voila.dev/replay against rrweb ${bench.rrweb.version} on lemonde.fr, Wikipedia and a small business site: ${headline.startRatio}× shorter freeze at start, ${headline.sizeRatio}× smaller recorder. Same pages, same masking, Chromium with a 4× slower CPU, median of ${bench.runs} runs.`}
+>
+	<div class="in">
+		<Top />
+		<header class="phero solo"><h1>Benchmark</h1></header>
+		<div class="pintro">
+			<p>Same pages, same masking, two recorders.</p>
+			<div><span class="k">Against</span>rrweb {bench.rrweb.version} (@rrweb/record, from npm)</div>
+			<div><span class="k">Runs</span>Chromium {bench.chromium.split(".")[0]}, CPU ×{bench.throttle}, median of {bench.runs}, {bench.date}</div>
+		</div>
+	</div>
+
+	<main class="in">
+		<section id="start">
+			<div class="head"><h2>Start</h2><span>The freeze when recording begins</span></div>
+			<div class="thousand">
+				<span class="n">{headline.startRatio}×</span>
+				<p>shorter freeze than rrweb on {headline.page}: {n(headline.replayStart)} ms against {n(headline.rrwebStart)} ms, on a phone-speed CPU.</p>
+			</div>
+
+			<div class="bars" role="table" aria-label="Longest main-thread task when recording starts">
+				<div class="bars-head" role="row">
+					<span role="columnheader">Page</span><span role="columnheader">Longest task in the 1.5 s after start</span><span role="columnheader" class="u">Elements</span>
+				</div>
+				{
+					realPages.map((p) => (
+						<>
+							<div class="bar ours" role="row">
+								<span role="cell"><b>replay</b><small>{p.name}</small></span>
+								<span role="cell" class="track-bar"><i style={`width:${((p.replay.longest ?? 0) / maxStart) * 100}%`} /><em>{n(p.replay.longest)} ms</em></span>
+								<span role="cell" class="u">{n(p.elements)}</span>
+							</div>
+							<div class="bar" role="row">
+								<span role="cell"><b>rrweb</b><small>{p.name}</small></span>
+								<span role="cell" class="track-bar"><i style={`width:${((p.rrweb.longest ?? 0) / maxStart) * 100}%`} /><em>{n(p.rrweb.longest)} ms</em></span>
+								<span role="cell" class="u">{n(p.elements)}</span>
+							</div>
+						</>
+					))
+				}
+			</div>
+			<p class="note">
+				A task over 50 ms is one the visitor can feel: a click that waits, a scroll that stutters. Measured from a Chromium trace limited to task
+				boundaries, with the CPU slowed 4× (DevTools throttling) to stand for a mid-range phone. Without recorder, the longest task on these pages is
+				2 to 4 ms.
+			</p>
+
+			<div class="figs">
+				<div><strong>{sizes.replay.send} KB</strong><span class="k">recorder + sending, gzip (rrweb record alone: {sizes.rrweb.record} KB)</span></div>
+				<div><strong>{n(heaviest.replay.tbt)} ms</strong><span class="k">total blocking time on {heaviest.name} (rrweb: {n(heaviest.rrweb.tbt)} ms)</span></div>
+				<div><strong>{times(heaviest.rrweb.mutationsGzip, heaviest.replay.mutationsGzip)}</strong><span class="k">fewer bytes for the same 600 changes</span></div>
+				{
+					mem.length ? (
+						<div><strong>{n(mem[mem.length - 1].replay, 1)} MB</strong><span class="k">memory held after 10 min on {mem[mem.length - 1].name} (rrweb: {n(mem[mem.length - 1].rrweb, 1)} MB)</span></div>
+					) : (
+						<div><strong>{bench.runs}</strong><span class="k">runs per measure, median</span></div>
+					)
+				}
+			</div>
+		</section>
+
+		<section id="numbers" class="feat">
+			<div class="head"><h2>Numbers</h2><span>Per page, median of {bench.runs}</span></div>
+			{
+				realPages.map((p) => (
+					<div class="table cmp">
+						<div class="row th"><span>No.</span><span>{p.name} · {n(p.elements)} elements</span><span>replay</span><span class="u">rrweb</span></div>
+						{rows.map(([name, f], i) => {
+							const [a, b] = f(p);
+							return <div class="row"><span class="n">{pad(i)}</span><b>{name}</b><span>{a}</span><span class="u">{b}</span></div>;
+						})}
+					</div>
+				))
+			}
+			<p class="note">
+				Initial capture: everything emitted in the 1.5 s after start, JSON, gzip as <code>CompressionStream</code> would. 600 mutations: 200 elements
+				added, then 200 attributes and 200 texts changed, in one task. Sending is not counted for either.
+			</p>
+		</section>
+
+		<section id="weight" class="feat">
+			<div class="head"><h2>Weight</h2><span>gzip, minified</span></div>
+			<div class="table cmp">
+				<div class="row th"><span>No.</span><span>Bundle</span><span>replay</span><span class="u">What is in it</span></div>
+				{weights.map(([name, size, what], i) => <div class="row"><span class="n">{pad(i)}</span><b>{name}</b><span>{size} KB</span><span class="u small">{what}</span></div>)}
+				<div class="row"><span class="n">{pad(weights.length)}</span><b>rrweb recorder</b><span class="mute">{sizes.rrweb.record} KB</span><span class="u small">@rrweb/record {bench.rrweb.version}, no sending</span></div>
+			</div>
+		</section>
+
+		{
+			bench.engines.length > 0 && (
+				<section id="engines" class="feat">
+					<div class="head"><h2>Engines</h2><span>No throttling, one run</span></div>
+					<div class="table cmp">
+						<div class="row th"><span>No.</span><span>Engine</span><span>replay</span><span class="u">rrweb</span></div>
+						{bench.engines.map((e, i) => (
+							<div class="row">
+								<span class="n">{pad(i)}</span>
+								<b>{e.engine} {e.version.split(".").slice(0, 2).join(".")}</b>
+								<span>{e.replay} / {e.pages} pages</span>
+								<span class="u">{e.rrweb} / {e.pages} pages</span>
+							</div>
+						))}
+					</div>
+					<p class="note">Recording starts and runs on every page, without an error in the page. The player is tested on the three engines by the library's own suite (below).</p>
+				</section>
+			)
+		}
+
+		<section id="method">
+			<div class="head"><h2>Method</h2><span>Honest reading</span></div>
+			<div class="arch-grid bench-grid">
+				<div class="feat">
+					<div class="table">
+						<div class="row"><span class="n">01</span><b>Frozen pages</b><p>lemonde.fr, a Wikipedia article and a small business site, recorded once as HAR archives. Every request is served from the archive, none from the network.</p></div>
+						<div class="row"><span class="n">02</span><b>Same options</b><p>Typed values masked, <code>[data-va-mask]</code> text masked, <code>[data-va-block]</code> blocked, shadow DOM and stylesheets recorded, no canvas.</p></div>
+						<div class="row"><span class="n">03</span><b>Cold start</b><p>A fresh browser context per run, recorders alternating, the recorder alone in the page.</p></div>
+						<div class="row"><span class="n">04</span><b>Not measured</b><p>Sending and compression, and how faithful each copy is. Fidelity has its own suite.</p></div>
+					</div>
+				</div>
+				<div>
+					<pre class="code"><span class="c"># the library's own suite</span>
+git clone {repo}
+cd replay && bun install
+bun test test/unit        <span class="c"># format, sending</span>
+npm run test:browser      <span class="c"># 48 cases × 3 engines</span>
+node test/browser/fuzz.mjs <span class="c"># random mutations</span>
+npm run size              <span class="c"># fails over budget</span></pre>
+					<p class="note">
+						Each browser case is also played back through a checkpoint, then the budget, a module that throws and the return from the back/forward
+						cache, on Chromium, WebKit and Firefox. We wrote this bench and we make replay: read it as such.
+						replay {bench.replay.version} ({bench.replay.commit}).
+					</p>
+				</div>
+			</div>
+		</section>
+
+		<Cta />
+	</main>
+	<div class="in"><Footer /></div>
+</Base>

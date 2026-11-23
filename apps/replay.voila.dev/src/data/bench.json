@@ -1,0 +1,315 @@
+{
+	"date": "2026-11-23",
+	"chromium": "149.0.7827.55",
+	"throttle": 4,
+	"runs": 5,
+	"replay": {
+		"version": "0.4.0",
+		"commit": "9a5b1db"
+	},
+	"rrweb": {
+		"version": "2.2.2"
+	},
+	"sizes": {
+		"rrweb": {
+			"record": 23.6
+		},
+		"replay": {
+			"record": 6.2,
+			"send": 7.8,
+			"all": 8.9,
+			"player": 7.4
+		}
+	},
+	"pages": [
+		{
+			"id": "sillage-fixture",
+			"name": "Test fixture",
+			"elements": 250,
+			"none": {
+				"eval": 0,
+				"start": 0.1,
+				"longest": 3.4,
+				"tbt": 0,
+				"task": 0,
+				"initialRaw": 0,
+				"initialGzip": 0,
+				"mutationsGzip": 0,
+				"mutationsLongest": 7.3,
+				"mutationsTask": 0
+			},
+			"rrweb": {
+				"eval": 7.4,
+				"start": 29.6,
+				"longest": 30,
+				"tbt": 0,
+				"task": 30.1,
+				"initialRaw": 5698,
+				"initialGzip": 1215,
+				"mutationsGzip": 3720,
+				"mutationsLongest": 19.9,
+				"mutationsTask": 15.1
+			},
+			"replay": {
+				"eval": 1.9,
+				"start": 11.2,
+				"longest": 11.7,
+				"tbt": 0,
+				"task": 16.8,
+				"initialRaw": 1646,
+				"initialGzip": 772,
+				"mutationsGzip": 1010,
+				"mutationsLongest": 6.6,
+				"mutationsTask": 4.8
+			}
+		},
+		{
+			"id": "calque-demo",
+			"name": "Demo shop",
+			"elements": 304,
+			"none": {
+				"eval": 0,
+				"start": 0.6,
+				"longest": 3.2,
+				"tbt": 0,
+				"task": 0,
+				"initialRaw": 0,
+				"initialGzip": 0,
+				"mutationsGzip": 0,
+				"mutationsLongest": 7.7,
+				"mutationsTask": 0
+			},
+			"rrweb": {
+				"eval": 8.6,
+				"start": 34.6,
+				"longest": 35.5,
+				"tbt": 0,
+				"task": 41.3,
+				"initialRaw": 22016,
+				"initialGzip": 4709,
+				"mutationsGzip": 3769,
+				"mutationsLongest": 19.5,
+				"mutationsTask": 17.3
+			},
+			"replay": {
+				"eval": 2.3,
+				"start": 11.2,
+				"longest": 11.7,
+				"tbt": 0,
+				"task": 19.6,
+				"initialRaw": 10403,
+				"initialGzip": 3514,
+				"mutationsGzip": 1009,
+				"mutationsLongest": 6.5,
+				"mutationsTask": 6.4
+			}
+		},
+		{
+			"id": "jardins",
+			"name": "jardins-du-bassin.fr",
+			"elements": 1071,
+			"none": {
+				"eval": 0,
+				"start": 0.5,
+				"longest": 3.2,
+				"tbt": 0,
+				"task": 0,
+				"initialRaw": 0,
+				"initialGzip": 0,
+				"mutationsGzip": 0,
+				"mutationsLongest": 8.4,
+				"mutationsTask": 0
+			},
+			"rrweb": {
+				"eval": 8.4,
+				"start": 75.8,
+				"longest": 76.7,
+				"tbt": 26.7,
+				"task": 79.4,
+				"initialRaw": 198057,
+				"initialGzip": 28792,
+				"mutationsGzip": 3795,
+				"mutationsLongest": 18,
+				"mutationsTask": 14
+			},
+			"replay": {
+				"eval": 2,
+				"start": 19.9,
+				"longest": 20.6,
+				"tbt": 0,
+				"task": 25.3,
+				"initialRaw": 123911,
+				"initialGzip": 23239,
+				"mutationsGzip": 1009,
+				"mutationsLongest": 8.3,
+				"mutationsTask": 4.5
+			}
+		},
+		{
+			"id": "wikipedia",
+			"name": "fr.wikipedia.org",
+			"elements": 3960,
+			"none": {
+				"eval": 0,
+				"start": 0.5,
+				"longest": 2.4,
+				"tbt": 0,
+				"task": 0,
+				"initialRaw": 0,
+				"initialGzip": 0,
+				"mutationsGzip": 0,
+				"mutationsLongest": 8.3,
+				"mutationsTask": 0
+			},
+			"rrweb": {
+				"eval": 6.7,
+				"start": 212.9,
+				"longest": 213.8,
+				"tbt": 163.8,
+				"task": 223.3,
+				"initialRaw": 1168024,
+				"initialGzip": 155211,
+				"mutationsGzip": 3818,
+				"mutationsLongest": 17.3,
+				"mutationsTask": 14.6
+			},
+			"replay": {
+				"eval": 2.8,
+				"start": 58.5,
+				"longest": 58.7,
+				"tbt": 8.7,
+				"task": 95,
+				"initialRaw": 819399,
+				"initialGzip": 119308,
+				"mutationsGzip": 1009,
+				"mutationsLongest": 7.2,
+				"mutationsTask": 8.2
+			}
+		},
+		{
+			"id": "lemonde",
+			"name": "lemonde.fr",
+			"elements": 5033,
+			"none": {
+				"eval": 0,
+				"start": 0.5,
+				"longest": 3.3,
+				"tbt": 0,
+				"task": 0,
+				"initialRaw": 0,
+				"initialGzip": 0,
+				"mutationsGzip": 0,
+				"mutationsLongest": 8.7,
+				"mutationsTask": 0
+			},
+			"rrweb": {
+				"eval": 7.3,
+				"start": 280.8,
+				"longest": 281.8,
+				"tbt": 231.8,
+				"task": 304.5,
+				"initialRaw": 2083115,
+				"initialGzip": 236199,
+				"mutationsGzip": 3812,
+				"mutationsLongest": 22.5,
+				"mutationsTask": 17.4
+			},
+			"replay": {
+				"eval": 2.3,
+				"start": 78.4,
+				"longest": 78.7,
+				"tbt": 28.7,
+				"task": 121.7,
+				"initialRaw": 1534716,
+				"initialGzip": 177476,
+				"mutationsGzip": 1009,
+				"mutationsLongest": 9.5,
+				"mutationsTask": 7.6
+			}
+		}
+	],
+	"engines": [
+		{
+			"engine": "WebKit",
+			"version": "26.5",
+			"pages": 5,
+			"rrweb": 5,
+			"replay": 5,
+			"start": {
+				"rrweb": {
+					"sillage-fixture": 30,
+					"calque-demo": 15,
+					"jardins": 40,
+					"wikipedia": 67,
+					"lemonde": 67
+				},
+				"replay": {
+					"sillage-fixture": 12,
+					"calque-demo": 5,
+					"jardins": 9,
+					"wikipedia": 12,
+					"lemonde": 18
+				}
+			}
+		},
+		{
+			"engine": "Firefox",
+			"version": "151.0",
+			"pages": 5,
+			"rrweb": 5,
+			"replay": 5,
+			"start": {
+				"rrweb": {
+					"sillage-fixture": 16,
+					"calque-demo": 19,
+					"jardins": 38,
+					"wikipedia": 74,
+					"lemonde": 99
+				},
+				"replay": {
+					"sillage-fixture": 5,
+					"calque-demo": 5,
+					"jardins": 10,
+					"wikipedia": 21,
+					"lemonde": 35
+				}
+			}
+		}
+	],
+	"memory": {
+		"ticks": 600,
+		"tickMs": 200,
+		"pages": [
+			{
+				"id": "sillage-fixture",
+				"name": "Test fixture",
+				"rrweb": 0.95,
+				"replay": 0.44
+			},
+			{
+				"id": "calque-demo",
+				"name": "Demo shop",
+				"rrweb": 1.13,
+				"replay": 0.52
+			},
+			{
+				"id": "jardins",
+				"name": "jardins-du-bassin.fr",
+				"rrweb": 1.51,
+				"replay": 0.5
+			},
+			{
+				"id": "wikipedia",
+				"name": "fr.wikipedia.org",
+				"rrweb": 3.82,
+				"replay": 0.77
+			},
+			{
+				"id": "lemonde",
+				"name": "lemonde.fr",
+				"rrweb": 5.52,
+				"replay": 1.19
+			}
+		]
+	}
+}

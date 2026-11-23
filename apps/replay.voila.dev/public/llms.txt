@@ -1,0 +1,16 @@
+# replay
+
+> replay (@voila.dev/replay) is open-source (MIT) session recording and replay for the web: a small recorder, a flat tape format, and a player that rebuilds the page through the DOM API in a sandboxed iframe. Masked by default, says when a chunk is lost, seeks from checkpoints. Zero dependencies. Built by VOILA DEVELOPMENT (https://voila.dev).
+
+## Benchmark (against rrweb 2.2.2, Chromium 149, CPU ×4, median of 5)
+- Recorder + sending: 7.8 KB gzip. @rrweb/record alone: 23.6 KB gzip. Player: 7.4 KB gzip.
+- lemonde.fr (5,000 elements): longest task at start 79 ms for replay, 282 ms for rrweb. Total blocking time 29 ms vs 232 ms.
+- 600 DOM mutations: 1.0 KB gzip for replay, 3.8 KB for rrweb.
+- JS memory held after 10 simulated minutes on lemonde.fr: 1.2 MB vs 5.5 MB.
+- Details: https://replay.voila.dev/benchmark
+
+## Links
+- Demos (live, in the browser): https://replay.voila.dev/demos
+- Code: https://github.com/voila-voila-dev/replay
+- npm: https://www.npmjs.com/package/@voila.dev/replay
+- Contact: emilien@voila.dev
