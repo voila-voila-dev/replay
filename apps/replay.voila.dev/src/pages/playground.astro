@@ -1,0 +1,90 @@
+---
+import Cta from "../components/Cta.astro";
+import Footer from "../components/Footer.astro";
+import Live from "../components/Live.astro";
+import Top from "../components/Top.astro";
+import { playground } from "../data/playground";
+import Base from "../layouts/Base.astro";
+
+const first = playground.presets[0];
+---
+
+<Base
+	title="replay playground · record a real page"
+	description="Record any Wikipedia article with @voila.dev/replay and watch its copy rebuilt next to it, in your browser: masking, the player's controls, the tape."
+>
+	<div class="in">
+		<Top />
+		<header class="phero solo"><h1>Playground</h1></header>
+		<div class="pintro">
+			<p>A real page, recorded in your browser.</p>
+			<div><span class="k">Page</span>Any Wikipedia article, in any language</div>
+			<div><span class="k">Why Wikipedia</span>A page of another site cannot be recorded from here: served by replay.voila.dev, it can</div>
+		</div>
+	</div>
+
+	<main class="in">
+		<section id="try">
+			<form class="pick" data-pick>
+				<label class="url">
+					<span class="k">Wikipedia article</span>
+					<input name="article" type="text" inputmode="url" autocomplete="off" spellcheck="false" placeholder="https://en.wikipedia.org/wiki/Ada_Lovelace" required />
+				</label>
+				<button class="btn small" type="submit">Record it</button>
+			</form>
+			<div class="presets">
+				{playground.presets.map((p) => <button type="button" class="badge" data-preset={p.url}><i aria-hidden="true"></i>{p.label}</button>)}
+			</div>
+			<p class="pick-error" data-pick-error hidden>That is not a Wikipedia article address.</p>
+
+			<Live
+				page={{ src: playground.path(first.url) ?? "", width: playground.width, height: playground.height, sources: playground.sources }}
+				maskPicker
+				controls
+				tape
+			/>
+			<p class="note">
+				Scroll, select text, follow links: each page you open is a new page view, recorded from a new snapshot. Scripts are removed from the page
+				served here; the copy would not run them anyway. Content from <a href="https://www.wikipedia.org">Wikipedia</a>, under{" "}
+				<a href="https://creativecommons.org/licenses/by-sa/4.0/">CC BY-SA 4.0</a>.
+			</p>
+		</section>
+
+		<Cta />
+	</main>
+	<div class="in"><Footer /></div>
+</Base>
+
+<script>
+	import { playground } from "../data/playground";
+
+	const form = document.querySelector<HTMLFormElement>("[data-pick]");
+	const input = form?.querySelector<HTMLInputElement>("input[name=article]");
+	const error = document.querySelector<HTMLElement>("[data-pick-error]");
+	const frame = document.querySelector<HTMLIFrameElement>("[data-live] .src iframe");
+
+	const open = (address: string) => {
+		const path = playground.path(address);
+		if (error) error.hidden = !!path;
+		if (!path || !frame) return;
+		// Before the demo starts, it reads data-src; after, a new address is a new page view.
+		frame.dataset.src = path;
+		if (frame.src) frame.src = path;
+		history.replaceState(null, "", `?article=${encodeURIComponent(address)}`);
+	};
+
+	form?.addEventListener("submit", (e) => {
+		e.preventDefault();
+		if (input) open(input.value);
+	});
+	for (const b of document.querySelectorAll<HTMLButtonElement>("[data-preset]"))
+		b.addEventListener("click", () => {
+			if (input) input.value = b.dataset.preset ?? "";
+			open(b.dataset.preset ?? "");
+		});
+	const shared = new URLSearchParams(location.search).get("article");
+	if (shared && input) {
+		input.value = shared;
+		open(shared);
+	}
+</script>

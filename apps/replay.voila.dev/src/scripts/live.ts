@@ -7,7 +7,7 @@ import { canvas, cssom, shadow } from "@voila.dev/replay/modules";
 import { createPlayer, type Player } from "@voila.dev/replay/play";
 import { type Mask, type Module, type Recorder, record } from "@voila.dev/replay/record";
 
-/** The demo checkout is laid out at this width; the demos scale it, and its copy, to fit. */
+/** The demo checkout is laid out at this width, unless a demo says otherwise (data-width); the demos scale the page, and its copy, to fit. */
 const PAGE_WIDTH = 560;
 const DRAIN_MS = 250;
 const LAG_MAX_MS = 600;
@@ -228,6 +228,7 @@ function mount(box: HTMLElement) {
 	const stage = box.querySelector<HTMLElement>(".dst .stage");
 	const dot = box.querySelector<HTMLElement>(".src .ghost");
 	if (!pane || !scaler || !frame || !stage || !dot) return;
+	const width = Number(box.dataset.width || PAGE_WIDTH);
 	const height = Number(box.dataset.height || 400);
 	const extras = (box.dataset.extras || "").split(",").filter(Boolean);
 	const modules = (box.dataset.modules || "cssom").split(",").filter((m) => m in MODULES);
@@ -243,12 +244,12 @@ function mount(box: HTMLElement) {
 	const stat = (name: string) => box.querySelector<HTMLElement>(`[data-stat="${name}"]`);
 	const autopilot = box.dataset.autopilot !== "off";
 
-	frame.style.width = `${PAGE_WIDTH}px`;
+	frame.style.width = `${width}px`;
 	frame.style.height = `${height}px`;
 	const layout = () => {
-		place(scaler, pane, PAGE_WIDTH, height);
+		place(scaler, pane, width, height);
 		const inner = stage.firstElementChild as HTMLElement | null;
-		if (inner) place(inner, stage, PAGE_WIDTH, height);
+		if (inner) place(inner, stage, width, height);
 	};
 	new ResizeObserver(layout).observe(pane);
 	new ResizeObserver(layout).observe(stage);
@@ -337,7 +338,8 @@ function mount(box: HTMLElement) {
 			chunks: [first],
 			skipIdle: idleBox?.checked ?? false,
 			speed: Number(speedSelect?.value || 1),
-			sources: [location.origin],
+			// The copy loads pictures from here only, and from what the demo allows (the playground: Wikimedia).
+			sources: [location.origin, ...(box.dataset.sources || "").split(" ").filter(Boolean)],
 		});
 		player.on("size", layout);
 		player.on("time", (t) => {
@@ -384,6 +386,12 @@ function mount(box: HTMLElement) {
 	};
 
 	const boot = () => {
+		// A page of another origin (a link that left the site) cannot be read, so not recorded.
+		try {
+			if (!frame.contentDocument) return;
+		} catch {
+			return;
+		}
 		start();
 		if (autopilot && !pilot) {
 			pilot = new Pilot(frame, dot, script(extras));
