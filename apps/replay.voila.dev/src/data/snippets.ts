@@ -16,20 +16,6 @@ const player = createPlayer({ root, chunks });
 player.play();
 player.seek(42_000); // from the nearest checkpoint`;
 
-export const demoSnippet = `// the recorded page lives in an iframe
-const rec = record(frame.contentWindow, { mask, modules: [cssom()] });
-const snap = rec.snap();
-const player = createPlayer({
-  root: stage,
-  chunks: [{ base: snap.base, seq: 0, tape: snap.tape }],
-});
-
-setInterval(() => {
-  const d = rec.drain();
-  player.append([{ base: d.base, seq: ++seq, tape: d.tape }]);
-  if (!player.playing) player.play();
-}, 250);`;
-
 export const suiteSnippet = `# the library's own suite
 git clone https://github.com/voila-voila-dev/replay
 cd replay && bun install

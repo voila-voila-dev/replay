@@ -1,14 +1,14 @@
 ---
-// A live demo: the demo checkout on the left, recorded by the library of this repo; its copy on
-// the right, rebuilt by the player in a sandboxed iframe. Both are laid out at the page's natural
-// size and scaled to fit. Extras are opt-in: tape panel, mask picker, a button that loses the
+// A live demo: a small app on the left (src/pages/demo), recorded by the library of this repo;
+// its copy on the right, rebuilt by the player in a sandboxed iframe. Both are laid out at the
+// app's natural size and scaled to fit. Opt-in: tape panel, mask picker, a button that loses the
 // next chunk, player controls. See src/scripts/live.ts.
-type Extra = "block" | "unmask" | "shadow" | "canvas";
+type App = "shop" | "todo" | "signup" | "chat" | "dashboard" | "draw";
 type ModuleName = "cssom" | "shadow" | "canvas";
 interface Props {
 	mask?: "inputs" | "text" | "none";
-	/** What the demo checkout adds for this demo (see public/demo/shop.html). */
-	extras?: Extra[];
+	/** The app recorded. */
+	app?: App;
 	modules?: ModuleName[];
 	tape?: boolean;
 	maskPicker?: boolean;
@@ -19,20 +19,21 @@ interface Props {
 	/** Another page to record, of this origin (the playground); its natural size, and no autopilot. */
 	page?: { src: string; width: number; height: number; sources?: string[] };
 }
-const { mask = "inputs", extras = [], modules = ["cssom"], tape = false, maskPicker = false, drop = false, controls = false, stats = true, compact = false, page } =
+const { mask = "inputs", app = "shop", modules = ["cssom"], tape = false, maskPicker = false, drop = false, controls = false, stats = true, compact = false, page } =
 	Astro.props;
 
-// The page's natural height, from what it shows: the base checkout, plus a row per extra.
+/** Each app's natural height, at 560 wide. */
+const HEIGHTS: Record<App, number> = { shop: 400, todo: 420, signup: 500, chat: 440, dashboard: 400, draw: 440 };
 const width = page?.width ?? 560;
-const height = page?.height ?? 400 + (extras.includes("block") ? 58 : 0) + (extras.includes("canvas") ? 92 : 0);
-const src = page?.src ?? (extras.length ? `/demo/shop?extras=${extras.join(",")}` : "/demo/shop");
+const height = page?.height ?? HEIGHTS[app];
+const src = page?.src ?? `/demo/${app}`;
 ---
 
 <div
 	class:list={["live", { compact }]}
 	data-live
 	data-mask={mask}
-	data-extras={extras.join(",")}
+	data-app={app}
 	data-modules={modules.join(",")}
 	data-width={width}
 	data-height={height}
@@ -45,7 +46,7 @@ const src = page?.src ?? (extras.length ? `/demo/shop?extras=${extras.join(",")}
 			<figcaption><span class="dot on"></span>Your page<em>try it</em></figcaption>
 			<div class="frame">
 				<div class="scaler">
-					<iframe title="Demo checkout, recorded" data-src={src}></iframe>
+					<iframe title="Demo app, recorded" data-src={src}></iframe>
 					<i class="ghost" aria-hidden="true"></i>
 				</div>
 			</div>

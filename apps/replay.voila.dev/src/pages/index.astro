@@ -1,7 +1,6 @@
 ---
 import Badges from "@voila.dev/site/components/Badges.astro";
 import CodeBlock from "@voila.dev/site/components/CodeBlock.astro";
-import FeatureGrid from "@voila.dev/site/components/FeatureGrid.astro";
 import Fixes from "@voila.dev/site/components/Fixes.astro";
 import Marquee from "@voila.dev/site/components/Marquee.astro";
 import Section from "@voila.dev/site/components/Section.astro";
@@ -12,7 +11,7 @@ import Footer from "../components/Footer.astro";
 import Live from "../components/Live.astro";
 import Top from "../components/Top.astro";
 import { headline, sizes } from "../data/bench";
-import { features } from "../data/features";
+import { featureCount, features } from "../data/features";
 import { fixes, marquee, statuses, steps } from "../data/home";
 import { browsers, npm, repo, version } from "../data/site";
 import { playSnippet, recordSnippet } from "../data/snippets";
@@ -75,13 +74,18 @@ const maxKb = Math.max(sizes.rrweb.record, sizes.replay.send);
 			/>
 		</Section>
 
-		<Section id="features" title="Features" tag={`${features.length} of them, all in the box`}>
-			<FeatureGrid items={features} />
-			<div class="ctas more">
-				<a class="btn" href="/docs">Read the docs →</a><a class="btn" href="/demos">Try every demo →</a><a class="btn" href="/playground"
-					>Record a Wikipedia page →</a
-				>
+		<Section id="features" title="Features" tag={`${featureCount}, all in the box`}>
+			<div class="featlist">
+				{
+					features.map((g) => (
+						<div>
+							<span class="k">{g.group}</span>
+							<ul>{g.items.map((f) => <li><a href={f.href}>{f.name}</a></li>)}</ul>
+						</div>
+					))
+				}
 			</div>
+			<div class="ctas more"><a class="btn" href="/demos">See them live →</a><a class="btn" href="/docs">Docs →</a></div>
 		</Section>
 
 		<Cta />

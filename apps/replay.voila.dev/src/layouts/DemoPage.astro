@@ -1,0 +1,37 @@
+---
+// The shell of a page the demos record: a card on the demo background, at a natural size the
+// demo scales to fit. Each page brings its own markup, style (is:global) and script (is:inline).
+interface Props {
+	title: string;
+}
+const { title } = Astro.props;
+---
+
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=560" />
+		<meta name="robots" content="noindex" />
+		<title>{title} · replay demo</title>
+		<style is:global>
+			* { box-sizing: border-box; margin: 0 }
+			html { background: #f1f1ec }
+			html, body { height: 100%; overflow: hidden }
+			body { font: 15px/1.4 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; color: #0c0c0e; padding: 20px }
+			.card { background: #fff; border: 1px solid #d9d9d4; border-radius: 16px; padding: 22px; display: flex; flex-direction: column; gap: 14px; height: 100% }
+			h1 { font-size: 20px; letter-spacing: -.02em }
+			label { display: flex; flex-direction: column; gap: 5px; font-size: 13px; color: #77777f }
+			input, textarea { font: inherit; color: #0c0c0e; padding: 10px 12px; border: 1px solid #d9d9d4; border-radius: 10px; outline: none; width: 100% }
+			input:focus, textarea:focus { border-color: #2633ff; box-shadow: 0 0 0 3px #2633ff22 }
+			button { font: inherit; cursor: pointer }
+			.primary { border: 0; border-radius: 12px; padding: 12px 16px; background: #2633ff; color: #fff; font-weight: 600 }
+			.primary:hover { background: #1a24c9 }
+			.muted { color: #77777f; font-size: 13px }
+		</style>
+		<slot name="head" />
+	</head>
+	<body>
+		<div class="card"><slot /></div>
+	</body>
+</html>

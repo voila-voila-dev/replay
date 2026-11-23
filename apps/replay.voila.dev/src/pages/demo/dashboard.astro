@@ -1,0 +1,42 @@
+---
+import DemoPage from "../../layouts/DemoPage.astro";
+---
+
+<DemoPage title="Dashboard">
+	<style is:global slot="head">
+		header { display: flex; justify-content: space-between; align-items: baseline }
+		.live { font-size: 12px; color: #e5484d }
+		.kpis { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px }
+		.kpi { padding: 12px; border: 1px solid #ececE7; border-radius: 12px }
+		.kpi b { display: block; font-size: 24px; font-variant-numeric: tabular-nums; letter-spacing: -.02em }
+		.bars { flex: 1; display: flex; align-items: flex-end; gap: 6px; padding-top: 8px }
+		.bars i { flex: 1; background: #2633ff; border-radius: 6px 6px 0 0; transition: height .3s ease; min-height: 4px }
+		.bars i:nth-child(3n) { background: #a9b1ff }
+		.clock { font-variant-numeric: tabular-nums }
+	</style>
+	<header><h1>Live orders</h1><span class="live">● <span class="clock" id="clock">00:00.0</span></span></header>
+	<div class="kpis">
+		<div class="kpi"><span class="muted">Orders</span><b id="orders">1 204</b></div>
+		<div class="kpi"><span class="muted">Revenue</span><b id="revenue">38 920 €</b></div>
+		<div class="kpi"><span class="muted">Online</span><b id="online">87</b></div>
+	</div>
+	<div class="bars" id="bars"></div>
+	<script is:inline>
+		const bars = document.getElementById("bars");
+		for (let i = 0; i < 18; i++) bars.append(document.createElement("i"));
+		let orders = 1204, revenue = 38920, t0 = performance.now();
+		const fmt = (n) => n.toLocaleString("fr-FR").replace(/ | /g, " ");
+		setInterval(() => {
+			const s = (performance.now() - t0) / 1000;
+			document.getElementById("clock").textContent = `${String(Math.floor(s / 60)).padStart(2, "0")}:${(s % 60).toFixed(1).padStart(4, "0")}`;
+		}, 100);
+		setInterval(() => {
+			orders += Math.round(Math.random() * 3);
+			revenue += Math.round(Math.random() * 120);
+			document.getElementById("orders").textContent = fmt(orders);
+			document.getElementById("revenue").textContent = `${fmt(revenue)} €`;
+			document.getElementById("online").textContent = String(70 + Math.round(Math.random() * 30));
+			for (const b of bars.children) b.style.height = `${15 + Math.random() * 85}%`;
+		}, 700);
+	</script>
+</DemoPage>

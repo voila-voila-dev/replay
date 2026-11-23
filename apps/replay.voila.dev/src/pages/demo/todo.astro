@@ -1,0 +1,43 @@
+---
+import DemoPage from "../../layouts/DemoPage.astro";
+---
+
+<DemoPage title="Todo">
+	<style is:global slot="head">
+		header { display: flex; justify-content: space-between; align-items: baseline }
+		form { display: grid; grid-template-columns: 1fr auto; gap: 10px }
+		ul { list-style: none; padding: 0; display: flex; flex-direction: column; gap: 6px; flex: 1; overflow: hidden }
+		li { display: grid; grid-template-columns: auto 1fr auto; gap: 10px; align-items: center; padding: 9px 12px; border: 1px solid #ececE7; border-radius: 10px; animation: in .25s ease }
+		li.done span { text-decoration: line-through; color: #a3a3ab }
+		li input { width: 18px; height: 18px; accent-color: #2633ff }
+		li button { border: 0; background: none; color: #a3a3ab; font-size: 18px; line-height: 1 }
+		li button:hover { color: #e5484d }
+		@keyframes in { from { opacity: 0; transform: translateY(-4px) } }
+	</style>
+	<header><h1>Today</h1><span class="muted" id="left">3 left</span></header>
+	<form id="add"><input id="new" autocomplete="off" placeholder="Add a task" /><button class="primary" type="submit">Add</button></form>
+	<ul id="list"></ul>
+	<script is:inline>
+		const list = document.getElementById("list");
+		const left = document.getElementById("left");
+		const count = () => (left.textContent = `${list.querySelectorAll("li:not(.done)").length} left`);
+		const add = (text, done = false) => {
+			const li = document.createElement("li");
+			li.innerHTML = `<input type="checkbox" ${done ? "checked" : ""}/><span></span><button aria-label="Delete">×</button>`;
+			li.querySelector("span").textContent = text;
+			li.classList.toggle("done", done);
+			li.querySelector("input").addEventListener("change", (e) => { li.classList.toggle("done", e.target.checked); count(); });
+			li.querySelector("button").addEventListener("click", () => { li.remove(); count(); });
+			list.prepend(li);
+			while (list.children.length > 6) list.lastElementChild.remove();
+			count();
+		};
+		for (const [t, d] of [["Water the plants", true], ["Reply to Camille", false], ["Book the train", false]]) add(t, d);
+		document.getElementById("add").addEventListener("submit", (e) => {
+			e.preventDefault();
+			const input = document.getElementById("new");
+			if (input.value.trim()) add(input.value.trim());
+			input.value = "";
+		});
+	</script>
+</DemoPage>

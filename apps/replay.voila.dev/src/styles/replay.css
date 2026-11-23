@@ -88,3 +88,13 @@
 
 /* A smaller wordmark than the kit's: the live demo needs the room */
 @media (min-width:861px){.hero .word{font-size:min(16.5vw,19svh,232px)}}
+
+/* Features: four groups, four names each, every one a link */
+.featlist{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:24px;padding-top:24px}
+.featlist .k{color:var(--volt)}
+.featlist ul{list-style:none;padding:0;display:flex;flex-direction:column;border-top:1px solid var(--ink)}
+.featlist li{border-bottom:1px solid var(--rule)}
+.featlist a{display:block;padding:12px 0;font:600 20px/1.15 var(--display);letter-spacing:-.03em}
+.featlist a:hover{color:var(--volt)}
+@media (max-width:860px){.featlist{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media (max-width:560px){.featlist{grid-template-columns:1fr}}
