@@ -1,0 +1,13 @@
+---
+// A code block in the site's colours (see src/lib/code-theme.ts), highlighted at build time.
+import { Code } from "astro:components";
+import { codeTheme } from "../lib/code-theme";
+
+interface Props {
+	code: string;
+	lang?: "ts" | "js" | "sh" | "html" | "json";
+}
+const { code, lang = "ts" } = Astro.props;
+---
+
+<div class="code"><Code code={code.trim()} lang={lang} theme={codeTheme} /></div>

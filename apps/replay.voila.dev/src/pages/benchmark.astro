@@ -1,9 +1,10 @@
 ---
+import CodeBlock from "../components/CodeBlock.astro";
 import Cta from "../components/Cta.astro";
 import Footer from "../components/Footer.astro";
 import Top from "../components/Top.astro";
 import { bench, headline, realPages, sizes } from "../data/bench";
-import { repo } from "../data/site";
+import { suiteSnippet } from "../data/snippets";
 import Base from "../layouts/Base.astro";
 
 const pad = (i: number) => String(i + 1).padStart(2, "0");
@@ -153,13 +154,7 @@ const weights: [string, number | null, string][] = [
 					</div>
 				</div>
 				<div>
-					<pre class="code"><span class="c"># the library's own suite</span>
-git clone {repo}
-cd replay && bun install
-bun test test/unit        <span class="c"># format, sending</span>
-npm run test:browser      <span class="c"># 48 cases × 3 engines</span>
-node test/browser/fuzz.mjs <span class="c"># random mutations</span>
-npm run size              <span class="c"># fails over budget</span></pre>
+					<CodeBlock code={suiteSnippet} lang="sh" />
 					<p class="note">
 						Each browser case is also played back through a checkpoint, then the budget, a module that throws and the return from the back/forward
 						cache, on Chromium, WebKit and Firefox. We wrote this bench and we make replay: read it as such.

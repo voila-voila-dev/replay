@@ -1,35 +1,60 @@
 ---
-// A live demo: the demo shop on the left, recorded by @voila.dev/replay; its copy on the right,
-// rebuilt by the player in a sandboxed iframe. Extras are opt-in: tape panel, mask picker,
-// a button that loses the next chunk, a seek bar. See src/scripts/live.ts.
+// A live demo: the demo checkout on the left, recorded by the library of this repo; its copy on
+// the right, rebuilt by the player in a sandboxed iframe. Both are laid out at the page's natural
+// size and scaled to fit. Extras are opt-in: tape panel, mask picker, a button that loses the
+// next chunk, player controls. See src/scripts/live.ts.
+type Extra = "block" | "unmask" | "shadow" | "canvas";
+type ModuleName = "cssom" | "shadow" | "canvas";
 interface Props {
 	mask?: "inputs" | "text" | "none";
+	/** What the demo checkout adds for this demo (see public/demo/shop.html). */
+	extras?: Extra[];
+	modules?: ModuleName[];
 	tape?: boolean;
 	maskPicker?: boolean;
 	drop?: boolean;
-	seek?: boolean;
+	controls?: boolean;
 	stats?: boolean;
 	compact?: boolean;
 }
-const { mask = "inputs", tape = false, maskPicker = false, drop = false, seek = false, stats = true, compact = false } = Astro.props;
+const { mask = "inputs", extras = [], modules = ["cssom"], tape = false, maskPicker = false, drop = false, controls = false, stats = true, compact = false } =
+	Astro.props;
+
+// The page's natural height, from what it shows: the base checkout, plus a row per extra.
+const height = 400 + (extras.includes("block") ? 58 : 0) + (extras.includes("canvas") ? 92 : 0);
+const src = extras.length ? `/demo/shop?extras=${extras.join(",")}` : "/demo/shop";
 ---
 
-<div class:list={["live", { compact }]} data-live data-mask={mask}>
+<div
+	class:list={["live", { compact }]}
+	data-live
+	data-mask={mask}
+	data-extras={extras.join(",")}
+	data-modules={modules.join(",")}
+	data-height={height}
+	style={`--ratio:560/${height}`}
+>
 	<div class="panes">
 		<figure class="src">
 			<figcaption><span class="dot on"></span>Your page<em>try it</em></figcaption>
 			<div class="frame">
-				<iframe title="Demo shop, recorded" loading="lazy" data-src="/demo/shop.html"></iframe>
-				<i class="ghost" aria-hidden="true"></i>
+				<div class="scaler">
+					<iframe title="Demo checkout, recorded" data-src={src}></iframe>
+					<i class="ghost" aria-hidden="true"></i>
+				</div>
 			</div>
 		</figure>
 		<figure class="dst">
-			<figcaption><span class="dot rec"></span>The copy<em class="lag">0.25 s behind</em><em class="hole">Hole · waiting for a snapshot</em><em class="past">Rewound</em></figcaption>
+			<figcaption>
+				<span class="dot rec"></span>The copy<em class="lag">0.25 s behind</em><em class="hole">Hole · waiting for a snapshot</em><em class="past"
+					>Rewound</em
+				>
+			</figcaption>
 			<div class="stage"></div>
 		</figure>
 	</div>
 	{
-		(maskPicker || drop || seek) && (
+		(maskPicker || drop || controls) && (
 			<div class="controls">
 				{maskPicker && (
 					<label>
@@ -42,12 +67,30 @@ const { mask = "inputs", tape = false, maskPicker = false, drop = false, seek = 
 					</label>
 				)}
 				{drop && <button class="btn small" data-drop>Lose the next chunk</button>}
-				{seek && (
-					<label class="seekbar">
-						<span class="k">Seek</span>
-						<input type="range" min="0" max="0" value="0" step="10" data-seek aria-label="Seek in the recording" />
-						<button class="btn small" data-live-follow>Back to live</button>
-					</label>
+				{controls && (
+					<>
+						<button class="btn small" data-play>Pause</button>
+						<label>
+							<span class="k">Speed</span>
+							<select data-speed>
+								<option value="1">1×</option>
+								<option value="2">2×</option>
+								<option value="4">4×</option>
+							</select>
+						</label>
+						<label class="check">
+							<input type="checkbox" data-skip-idle />
+							<span>Skip idle</span>
+						</label>
+						<div class="seekbar">
+							<span class="k">Seek <em data-time>0:00 / 0:00</em></span>
+							<div class="rail">
+								<input type="range" min="0" max="0" value="0" step="10" data-seek aria-label="Seek in the recording" />
+								<span class="gaps" data-gaps aria-hidden="true" />
+							</div>
+							<button class="btn small" data-live-follow>Back to live</button>
+						</div>
+					</>
 				)}
 			</div>
 		)

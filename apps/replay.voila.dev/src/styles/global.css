@@ -162,7 +162,9 @@ footer{margin-top:120px;border-top:1px solid var(--ink);padding-block:24px 40px;
 .arch .claim{font:600 clamp(26px,3vw,40px)/1.1 var(--display);letter-spacing:-.03em;max-width:22ch;margin:8px 0 32px}
 .arch-grid{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr);gap:32px;align-items:start;margin-bottom:24px}
 .arch .row{grid-template-columns:48px minmax(0,180px) minmax(0,1fr)}
-.code{margin:0;padding:24px;background:var(--ink);color:#f6f6f3;border-radius:16px;font:400 13px/1.7 var(--mono);overflow-x:auto}
+.code{margin:0;padding:24px;background:var(--ink);color:#f6f6f3;border-radius:16px;font:400 13px/1.7 var(--mono);overflow-x:auto;min-width:0}
+.code pre{margin:0;background:transparent!important;font:inherit;overflow-x:auto}
+.code code{font:inherit;background:none;border:0;padding:0}
 .code .c{color:#8a8a92}
 @media (max-width:860px){
   .logos{grid-template-columns:repeat(2,minmax(0,1fr))}
@@ -300,7 +302,8 @@ code{font:inherit;background:#fff;border:1px solid var(--rule);padding:0 5px}
   .hero .word{font-size:min(16.5vw,19svh,232px);padding:min(6svh,56px) 0 0}
   .hero .live{flex:1 1 auto;min-height:0;display:flex;flex-direction:column;padding-block:min(2svh,20px) min(3svh,28px)}
   .hero .live .panes{flex:1 1 auto;min-height:0}
-  .hero .live .frame,.hero .live .stage{height:auto;flex:1 1 auto;min-height:220px}
+  .hero .live figure{min-height:0}
+  .hero .live .frame,.hero .live .stage{aspect-ratio:auto;height:auto;flex:1 1 auto;min-height:240px}
   .hero .under{margin-top:0;padding-top:20px}
 }
 /* GitHub stars in the top bar */
@@ -321,11 +324,12 @@ code{font:inherit;background:#fff;border:1px solid var(--rule);padding:0 5px}
 .panes figcaption em{font-style:normal;color:var(--mute);margin-left:auto}
 .panes .dot{width:8px;height:8px;border-radius:50%;background:var(--volt)}
 .panes .dot.rec{background:#e5484d;animation:blink 1.4s steps(2,start) infinite}
-.frame,.stage{position:relative;height:440px;border:1px solid var(--ink);background:#f1f1ec;overflow:hidden}
-.frame iframe{display:block;width:100%;height:100%;border:0}
+.frame,.stage{position:relative;aspect-ratio:var(--ratio,560/400);border:1px solid var(--ink);background:#f1f1ec;overflow:hidden}
+.scaler{position:absolute;left:0;top:0}
+.scaler iframe{display:block;border:0;background:#f1f1ec}
 .ghost{position:absolute;left:0;top:0;width:18px;height:18px;margin:-3px 0 0 -3px;pointer-events:none;opacity:0;transition:opacity .3s;background:no-repeat center/contain url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M4 2l16 10-7 1.5L9.5 21z' fill='%230c0c0e' stroke='%23fff' stroke-width='1.5' stroke-linejoin='round'/%3E%3C/svg%3E")}
-.stage>div{transform-origin:0 0}
-.dst .stage{background:repeating-linear-gradient(135deg,#ecece7 0 8px,#f1f1ec 8px 16px)}
+.stage>div{position:absolute!important;left:0;top:0}
+.dst .stage{background:#f1f1ec}
 .dst .hole,.dst .past{display:none}
 .live.holed .dst .lag,.live.scrubbing .dst .lag{display:none}
 .live.holed .dst .hole{display:inline;color:#e5484d}
@@ -356,13 +360,11 @@ code{font:inherit;background:#fff;border:1px solid var(--rule);padding:0 5px}
 @media (max-width:860px){
   .demos.four{grid-template-columns:repeat(2,minmax(0,1fr))}
   .code-grid{grid-template-columns:minmax(0,1fr)}
-  .frame,.stage{height:380px}
   .lstats{grid-template-columns:repeat(2,minmax(0,1fr))}
   .lstats div:nth-child(2){border-right:0}.lstats div:nth-child(3){padding-left:0}
 }
 @media (max-width:560px){
   .panes{grid-template-columns:1fr;gap:16px}
-  .live.compact .frame,.live.compact .stage{height:260px;min-height:0}
   .demos.four{grid-template-columns:1fr}
 }
 .cmp .row .u.small{font-size:13px;color:var(--mute);white-space:normal}
@@ -371,3 +373,35 @@ code{font:inherit;background:#fff;border:1px solid var(--rule);padding:0 5px}
 /* The wordmark's descenders (p, y) clear the demo captions */
 .hero .word{padding-bottom:.14em}
 @media (min-width:861px){.hero .word{padding-bottom:.14em}}
+
+/* Player controls: play, speed, skip idle, a seek rail with the holes marked */
+.controls .check{flex-direction:row;align-items:center;gap:8px;padding-bottom:10px;font-size:13px;text-transform:uppercase;letter-spacing:.06em}
+.controls .check input{accent-color:var(--volt);width:16px;height:16px}
+.seekbar em{font-style:normal;color:var(--ink);margin-left:8px;font-variant-numeric:tabular-nums;text-transform:none}
+.rail{position:relative}
+.rail .gaps{position:absolute;left:0;right:0;top:50%;height:10px;margin-top:-5px;pointer-events:none}
+.rail .gaps i{position:absolute;top:0;bottom:0;background:#e5484d;border-radius:2px}
+/* Features grid */
+.features{display:grid;grid-template-columns:repeat(4,minmax(0,1fr))}
+.features>div{padding:20px 20px 24px 0;border-bottom:1px solid var(--rule);display:flex;flex-direction:column;gap:8px}
+.features>div:not(:nth-child(4n+1)){padding-left:20px;border-left:1px solid var(--rule)}
+.features .k{margin:0;color:var(--volt)}
+.features b{font:600 22px/1.1 var(--display);letter-spacing:-.03em}
+.features p{color:var(--mute);font-size:14px}
+.features a{margin-top:auto;font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--ink);text-decoration:underline;text-underline-offset:3px}
+.features a:hover{color:var(--volt)}
+@media (max-width:860px){
+  .features{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .features>div:not(:nth-child(4n+1)){padding-left:0;border-left:0}
+  .features>div:nth-child(2n){padding-left:16px;border-left:1px solid var(--rule)}
+}
+@media (max-width:560px){.features{grid-template-columns:1fr}.features>div:nth-child(2n){padding-left:0;border-left:0}}
+/* Demos index */
+.toc{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:0;margin-top:40px;border-top:1px solid var(--ink)}
+.toc a{display:flex;flex-direction:column;gap:4px;padding:16px 16px 16px 0;border-bottom:1px solid var(--rule)}
+.toc a+a{padding-left:16px;border-left:1px solid var(--rule)}
+.toc .n{color:var(--volt);font-size:12px}
+.toc b{font:600 24px/1 var(--display);letter-spacing:-.03em}
+.toc em{font-style:normal;color:var(--mute);font-size:13px}
+.toc a:hover b{color:var(--volt)}
+@media (max-width:860px){.toc{grid-template-columns:1fr 1fr}.toc a+a{padding-left:0;border-left:0}.toc a:nth-child(2n){padding-left:16px;border-left:1px solid var(--rule)}}

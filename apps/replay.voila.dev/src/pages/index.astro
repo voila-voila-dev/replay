@@ -1,10 +1,13 @@
 ---
+import CodeBlock from "../components/CodeBlock.astro";
 import Cta from "../components/Cta.astro";
 import Footer from "../components/Footer.astro";
 import Live from "../components/Live.astro";
 import Top from "../components/Top.astro";
 import { headline, sizes } from "../data/bench";
+import { features } from "../data/features";
 import { browsers, npm, repo, version } from "../data/site";
+import { playSnippet, recordSnippet } from "../data/snippets";
 import Base from "../layouts/Base.astro";
 
 const pad = (i: number) => String(i + 1).padStart(2, "0");
@@ -25,12 +28,6 @@ const steps = [
 	["Record", "A snapshot, then what changed. Typed values stay on the page."],
 	["Send", "Chunks to your endpoint. A beacon on the way out."],
 	["Play", "A sandboxed copy, rebuilt node by node. Seek anywhere."],
-];
-const demos = [
-	["live", "Live", "Your page on the left, its copy on the right, the tape in between."],
-	["mask", "Masking", "Type a card number. The copy only gets stars."],
-	["holes", "Holes", "Lose a chunk on purpose. The player says so."],
-	["seek", "Seek", "Scrub back through the session, from checkpoints."],
 ];
 const maxKb = Math.max(sizes.rrweb.record, sizes.replay.send);
 ---
@@ -102,21 +99,8 @@ const maxKb = Math.max(sizes.rrweb.record, sizes.replay.send);
 				{steps.map(([name, text], i) => <div><span class="n">{pad(i)}</span><b>{name}</b><p>{text}</p></div>)}
 			</div>
 			<div class="arch-grid code-grid">
-				<pre class="code"><span class="c">// bun add @voila.dev/replay</span>
-import {"{"} record {"}"} from "@voila.dev/replay/record";
-import {"{"} connect {"}"} from "@voila.dev/replay/send";
-
-const rec = record(window, {"{"} mask: "inputs" {"}"});
-const link = connect({"{"} endpoint: "/replay", head {"}"});
-link.send(rec.snap());
-setInterval(() =&gt; link.send(rec.drain()), 5000);
-addEventListener("pagehide", () =&gt; link.leave(rec.drain()));</pre>
-				<pre class="code"><span class="c">// later, wherever you watch</span>
-import {"{"} createPlayer {"}"} from "@voila.dev/replay/play";
-
-const player = createPlayer({"{"} root, chunks {"}"});
-player.play();
-player.seek(42_000); <span class="c">// from the nearest checkpoint</span></pre>
+				<CodeBlock code={recordSnippet} />
+				<CodeBlock code={playSnippet} />
 			</div>
 			<div class="badges">
 				<a class="badge" href={repo}><i aria-hidden="true"></i>100% open source · MIT</a>
@@ -125,24 +109,21 @@ player.seek(42_000); <span class="c">// from the nearest checkpoint</span></pre>
 			</div>
 		</section>
 
-		<section id="demos">
-			<div class="head"><h2>Demos</h2><span>Live, in your browser</span></div>
-			<div class="demos four">
+		<section id="features">
+			<div class="head"><h2>Features</h2><span>{features.length} of them, all in the box</span></div>
+			<div class="features">
 				{
-					demos.map(([id, name, text], i) => (
-						<a href={`/demos#${id}`}>
-							<figure>
-								<div class="screen">
-									<span class="rec">● REC</span>
-									<span class="soon">{name}</span>
-									<span class="tc">Try it →</span>
-								</div>
-								<figcaption><span class="n">{pad(i)}</span><b>{name}</b><p>{text}</p></figcaption>
-							</figure>
-						</a>
+					features.map((f) => (
+						<div>
+							<span class="k">{f.group}</span>
+							<b>{f.name}</b>
+							<p>{f.text}</p>
+							{f.link && <a href={f.link.href}>{f.link.label} →</a>}
+						</div>
 					))
 				}
 			</div>
+			<a class="btn more" href="/demos">Try every demo →</a>
 		</section>
 
 		<Cta />
