@@ -31,6 +31,7 @@ player.play();
 - **A page view has a budget.** Past 8 MB of tape (`budget`), `END 2` goes on the next tape and recording stops. A module that throws is cut alone: `ERR` and its name on the tape, said again in each snapshot, and the rest goes on.
 - **Back from the back/forward cache, a new snapshot is due.** The beacon on the way out may not have held all the tape: `needsSnap` turns true on `pageshow` with `persisted`, and the page view goes on from a new snapshot.
 - **Seeking back does not replay from the start.** Every 10 s of tape, the player keeps a checkpoint: a copy of the rebuilt page in a document of no window, its node numbers, and what a copy does not carry (constructed sheets and who adopts them, canvas pixels, modal dialogs and popovers, scroll positions, frames' documents). A seek starts from the nearest checkpoint or snapshot before it. Past 64 checkpoints, one in two goes.
+- **Pictures load from their copies.** With `asset(url)`, every address of a picture or a font goes to the copy the host kept. Of a `srcset`, only the candidates with a copy stay, so the viewer's screen never picks one from the site as it is today; all of them when none was kept. With `sources`, the copy loads pictures, fonts and media only from those origins (and `data:`, `blob:`): an address left uncopied is refused, not fetched.
 - **The copy cannot act.** It plays in a sandboxed iframe without scripts; event handlers, `javascript:` URLs, `<script>`, `<base>` and `target` are dropped.
 
 ## Browsers

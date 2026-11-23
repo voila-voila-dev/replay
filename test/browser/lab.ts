@@ -274,7 +274,7 @@ async function checkpoint(): Promise<Array<string>> {
 	// Pictures and fonts load from the copy kept for them; a stylesheet keeps its address.
 	const kept = (url: string) => (url.includes("/p/") ? url.replace("http://lab.test/", "http://kept.test/") : url);
 	const c = mirror(frame(), { asset: kept });
-	// Numbers: doctype 2, html 3, head 4, link 5, body 6, img 7, div 8.
+	// Numbers: doctype 2, html 3, head 4, link 5, body 6, img 7, div 8, img 9, img 10.
 	c.run([
 		96, 2, "http://lab.test/x", 1000, 400, 300, 0,
 		3, "html", "", "",
@@ -282,8 +282,49 @@ async function checkpoint(): Promise<Array<string>> {
 		1, "body", 0,
 		1, "img", 2, "src", "/p/a.jpg", "srcset", "/p/a.jpg 1x, /p/b.jpg 2x", 0,
 		1, "div", 1, "style", "background:url(/p/c.png)", 0,
+		1, "img", 1, "srcset", "/p/a.jpg 400w, /q/d.jpg 800w", 0,
+		1, "img", 1, "srcset", "/q/e.jpg 1x, /q/f.jpg 2x", 0,
 		0, 0,
 	] as never);
+	// A candidate never copied would load from the site, whichever the viewer's screen picks.
+	if ((c.nodes[9] as Element)?.getAttribute("srcset") !== "http://kept.test/p/a.jpg 400w")
+		out.push(`copie gardée : srcset en partie gardé ${(c.nodes[9] as Element)?.getAttribute("srcset")}`);
+	if ((c.nodes[10] as Element)?.getAttribute("srcset") !== "http://lab.test/q/e.jpg 1x, http://lab.test/q/f.jpg 2x")
+		out.push(`copie gardée : srcset jamais gardé ${(c.nodes[10] as Element)?.getAttribute("srcset")}`);
+	// With `sources`, a picture left uncopied is refused, never fetched from the recorded site;
+	// one under a source given loads.
+	{
+		const host = document.getElementById("replay") as HTMLElement;
+		host.replaceChildren();
+		const player = createPlayer({
+			root: host,
+			sources: [`${location.origin}/kept/`],
+			chunks: [
+				{
+					base: 1,
+					tape: [
+						96, 2, location.href, 1000, 400, 300, 0,
+						3, "html", "", "",
+						1, "html", 0, 1, "head", 0, 0, 1, "body", 0,
+						1, "img", 1, "src", `${location.origin}/never-copied.png`, 0,
+						1, "img", 1, "src", `${location.origin}/kept/copied.png`, 0,
+						0, 0,
+					],
+				},
+			] as never,
+		});
+		// Chromium lists a refused picture among the resources, and says it refused it.
+		const refused: Array<string> = [];
+		player.document.addEventListener("securitypolicyviolation", (e) => refused.push(e.blockedURI));
+		player.seek(player.duration);
+		await sleep(300);
+		const asked = (player.iframe.contentWindow?.performance.getEntriesByType("resource") ?? []).map((e) => e.name);
+		if (!asked.some((url) => url.includes("/kept/copied.png")))
+			out.push(`sources : l'image sous une source donnée n'a pas été demandée (${asked.join(", ") || "rien"})`);
+		if (asked.some((url) => url.includes("never-copied.png")) && !refused.some((url) => url.includes("never-copied.png")))
+			out.push("sources : l'image hors des copies a été demandée au site");
+		player.destroy();
+	}
 	const img = c.nodes[7] as Element;
 	if (img?.getAttribute("src") !== "http://kept.test/p/a.jpg") out.push(`copie gardée : src ${img?.getAttribute("src")}`);
 	if (img?.getAttribute("srcset") !== "http://kept.test/p/a.jpg 1x, http://kept.test/p/b.jpg 2x")

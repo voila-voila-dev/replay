@@ -18,6 +18,12 @@ export interface PlayerOptions {
 	readonly every?: number;
 	/** Where to load a picture or a font from, given its address on the page (see `MirrorHooks`). */
 	readonly asset?: (url: string) => string;
+	/**
+	 * The only origins the copy may load pictures, fonts and media from (`https://cdn.example`),
+	 * besides `data:` and `blob:`: the address of a picture left uncopied is then refused rather
+	 * than fetched from the recorded site. Anything loads when left out.
+	 */
+	readonly sources?: ReadonlyArray<string>;
 }
 
 export interface Gap {
@@ -87,6 +93,18 @@ export function createPlayer(options: PlayerOptions): Player {
 	stage.append(iframe, cursor);
 	root.append(stage);
 	const doc = iframe.contentDocument as Document;
+	// Set before the first node is built; it holds for the document's life, whatever the
+	// snapshots later put in its place.
+	if (options.sources) {
+		const from = ["data:", "blob:", ...options.sources].join(" ");
+		const policy = doc.createElement("meta");
+		policy.setAttribute("http-equiv", "Content-Security-Policy");
+		policy.setAttribute(
+			"content",
+			`default-src 'none'; img-src ${from}; font-src ${from}; media-src ${from}; style-src 'unsafe-inline' ${from}`,
+		);
+		(doc.head ?? doc.documentElement ?? doc).appendChild(policy);
+	}
 
 	const listeners: { [K in keyof Events]?: Set<(p: Events[K]) => void> } = {};
 	function emit<K extends keyof Events>(event: K, payload: Events[K]) {

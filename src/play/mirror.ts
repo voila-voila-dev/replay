@@ -110,6 +110,23 @@ export function mirror(doc: Document, hooks: MirrorHooks = {}): Mirror {
 	const css = (text: string, from = base) =>
 		text.replace(CSS_URL, (_m, _q, url: string) => `url("${kept(absolute(url, from))}")`);
 	const local = (el: Element) => localName.call(el);
+	// The viewer's screen picks among them, not the visitor's: a candidate with no copy kept
+	// would load from the site as it is today. Only the kept ones stay; all of them when none
+	// was kept, for a recording older than its copies.
+	function candidates(srcset: string): string {
+		const parts = srcset
+			.split(",")
+			.map((part) => part.trim())
+			.filter(Boolean)
+			.map((part) => {
+				const [url = "", ...rest] = part.split(/\s+/);
+				const from = absolute(url);
+				const to = kept(from);
+				return { text: [to, ...rest].join(" "), held: to !== from };
+			});
+		const held = hooks.asset ? parts.filter((part) => part.held) : [];
+		return (held.length > 0 ? held : parts).map((part) => part.text).join(", ");
+	}
 
 	function add(n: Node) {
 		const top = stack[stack.length - 1];
@@ -137,14 +154,7 @@ export function mirror(doc: Document, hooks: MirrorHooks = {}): Mirror {
 			if (!SAFE_URL.test(value)) value = "about:blank";
 			// A stylesheet's own address stays: its rules came on the tape, read from there.
 			else if (tag !== "link") value = kept(value);
-		} else if (name === "srcset")
-			value = value
-				.split(",")
-				.map((part) => {
-					const [url, ...rest] = part.trim().split(/\s+/);
-					return [kept(absolute(url || "")), ...rest].join(" ");
-				})
-				.join(", ");
+		} else if (name === "srcset") value = candidates(value);
 		else if (name === "style") value = css(value);
 		else if (tag === "a" && name === "target") return;
 		try {
