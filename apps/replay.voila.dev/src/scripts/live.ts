@@ -51,6 +51,8 @@ class Pilot {
 	x = 60;
 	y = 60;
 	stopped = false;
+	/** Off screen, the pilot waits: nobody watches, and nothing it does should reach the page. */
+	visible = true;
 	private takenAt = 0;
 	constructor(
 		private readonly frame: HTMLIFrameElement,
@@ -123,7 +125,8 @@ class Pilot {
 		await this.click(sel);
 		const el = this.doc.querySelector(sel) as HTMLInputElement | null;
 		if (!el || !el.offsetParent || this.taken) return;
-		el.focus();
+		// Focus inside a frame scrolls the page around it to show the field: never move the reader's page.
+		el.focus({ preventScroll: true });
 		for (const ch of text) {
 			if (this.taken) return;
 			el.value += ch;
@@ -162,7 +165,7 @@ class Pilot {
 	async run() {
 		while (!this.stopped) {
 			for (const s of this.steps) {
-				while (this.taken && !this.stopped) {
+				while ((this.taken || !this.visible) && !this.stopped) {
 					this.show();
 					await sleep(400);
 				}
@@ -395,9 +398,16 @@ function mount(box: HTMLElement) {
 		start();
 		if (autopilot && !pilot) {
 			pilot = new Pilot(frame, dot, script(extras));
+			pilot.visible = onScreen;
 			pilot.run();
 		}
 	};
+
+	let onScreen = true;
+	new IntersectionObserver(([entry]) => {
+		onScreen = !!entry?.isIntersecting;
+		if (pilot) pilot.visible = onScreen;
+	}).observe(box);
 
 	maskSelect?.addEventListener("change", () => frame.contentWindow?.location.reload());
 	dropButton?.addEventListener("click", () => {
