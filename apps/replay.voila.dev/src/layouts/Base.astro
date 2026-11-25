@@ -26,5 +26,9 @@ const software = {
 ---
 
 <Shell title={title} description={description} siteName={siteName} jsonLd={home ? software : undefined}>
+	<Fragment slot="head">
+		<!-- Cookie-free analytics (analytics.voila.dev) -->
+		<script is:inline defer src="https://lumen.voila.dev/s.js" data-property="308c506e-38cc-4924-be61-951e132f97c9"></script>
+	</Fragment>
 	<slot />
 </Shell>
