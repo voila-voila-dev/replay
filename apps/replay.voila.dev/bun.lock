@@ -6,7 +6,7 @@
       "name": "replay.voila.dev",
       "dependencies": {
         "@astrojs/mdx": "^8.1.6",
-        "@voila.dev/site": "github:voila-voila-dev/site#v0.1.0",
+        "@voila.dev/site": "^0.1.0",
         "astro": "^7.4.13",
       },
       "devDependencies": {
@@ -320,7 +320,7 @@
 
     "@ungap/structured-clone": ["@ungap/structured-clone@1.4.0", "", {}, "sha512-1mEZtMKPM09vDmQt5y7YvmN2+DFTP7Tg0EWXdic8/C6VRnpb33e4ghisCIE3WZjsE2N8mf+QV1Zqh7ZFYLWInQ=="],
 
-    "@voila.dev/site": ["@voila.dev/site@github:voila-voila-dev/site#5e0055e", { "peerDependencies": { "astro": ">=6" } }, "voila-voila-dev-site-5e0055e", "sha512-6hWCBkB/fhFv7vP4I38Z3YBlQjqSOz+ZZfRR/HvF/AJrlgXHo1xEmXpD2OiVwg54UH/zk1g14hQaSNQycVu+hw=="],
+    "@voila.dev/site": ["@voila.dev/site@0.1.0", "", { "peerDependencies": { "astro": ">=6" } }, "sha512-PM9agkg9bWukPNXKj4tLIYZZQ2vM+jdmwAppzFTWVMHRX37IlEVB7dYeRh39udZXPMu8cjg6q84p6sHhePoPdA=="],
 
     "abort-controller": ["abort-controller@3.0.0", "", { "dependencies": { "event-target-shim": "^5.0.0" } }, "sha512-h8lQ8tacZYnR3vNQTgibj+tODHI5/+l06Au2Pcriv/Gmet0eaj4TwWH41sO9wnHDiQsEj19q0drzdWdeAHtweg=="],
 
